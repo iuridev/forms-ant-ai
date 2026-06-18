@@ -1,0 +1,22 @@
+# Credenciais — NUNCA commitar
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# Dependências
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build
+frontend/dist/
+
+# Banco local (SQLite legado)
+backend/prisma/dev.db
+backend/prisma/migrations/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.log

@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("STUDENT")
+  createdAt DateTime @default(now())
+
+  exams    Exam[]
+  attempts ExamAttempt[]
+}
+
+model Exam {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  durationMinutes Int      @default(60)
+  status          String   @default("DRAFT")
+  accessCode      String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  teacher   User   @relation(fields: [teacherId], references: [id])
+  teacherId String
+
+  questions Question[]
+  attempts  ExamAttempt[]
+}
+
+model Question {
+  id           String  @id @default(cuid())
+  text         String
+  type         String
+  points       Float   @default(1)
+  order        Int
+  correctBlank String?
+
+  exam   Exam   @relation(fields: [examId], references: [id], onDelete: Cascade)
+  examId String
+
+  options Option[]
+  answers Answer[]
+}
+
+model Option {
+  id        String  @id @default(cuid())
+  text      String
+  isCorrect Boolean @default(false)
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionId String
+
+  answers Answer[]
+}
+
+model ExamAttempt {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+  score       Float?
+  maxScore    Float?
+  status      String    @default("IN_PROGRESS")
+
+  student   User   @relation(fields: [studentId], references: [id])
+  studentId String
+
+  exam   Exam   @relation(fields: [examId], references: [id])
+  examId String
+
+  answers    Answer[]
+  violations ViolationLog[]
+
+  @@unique([studentId, examId])
+}
+
+model Answer {
+  id           String  @id @default(cuid())
+  textAnswer   String?
+  isCorrect    Boolean @default(false)
+  pointsEarned Float   @default(0)
+
+  attempt   ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptId String
+
+  question   Question @relation(fields: [questionId], references: [id])
+  questionId String
+
+  selectedOption   Option? @relation(fields: [selectedOptionId], references: [id])
+  selectedOptionId String?
+
+  @@unique([attemptId, questionId])
+}
+
+model ViolationLog {
+  id        String   @id @default(cuid())
+  type      String
+  details   String?
+  timestamp DateTime @default(now())
+
+  attempt   ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  attemptId String
+}
