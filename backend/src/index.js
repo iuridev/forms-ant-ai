@@ -62,7 +62,7 @@ async function start() {
     console.log('Conectando ao Google Sheets...');
     await db.init();
     console.log('Google Sheets conectado e abas verificadas.');
-    server.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+    server.listen(PORT, '0.0.0.0', () => console.log(`Servidor rodando em 0.0.0.0:${PORT}`));
   } catch (err) {
     console.error('Erro ao conectar ao Google Sheets:', err.message);
     process.exit(1);
