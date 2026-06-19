@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, Divider, Select, message } from 
 import { UserOutlined, LockOutlined, MailOutlined, BookOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import GoogleLoginButton from '../components/GoogleLoginButton';
 import api from '../api';
 
 const { Title, Text } = Typography;
@@ -33,6 +34,10 @@ export default function RegisterPage() {
           <Title level={3} style={{ margin: '12px 0 4px' }}>Criar Conta</Title>
           <Text type="secondary">ProvaFácil</Text>
         </div>
+
+        <GoogleLoginButton />
+
+        <Divider plain><Text type="secondary" style={{ fontSize: 12 }}>ou cadastre com email</Text></Divider>
 
         <Form layout="vertical" onFinish={handleSubmit} size="large">
           <Form.Item name="name" rules={[{ required: true, message: 'Nome obrigatório' }]}>

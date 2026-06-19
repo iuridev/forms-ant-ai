@@ -1,6 +1,9 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
 const db = require('../services/sheetsDb');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 function generateToken(user) {
   return jwt.sign(
@@ -54,4 +57,32 @@ async function me(req, res) {
   return res.json(safeUser(user));
 }
 
-module.exports = { register, login, me };
+async function googleAuth(req, res) {
+  const { googleUserInfo, role } = req.body;
+  if (!googleUserInfo?.email) return res.status(400).json({ error: 'Dados do Google obrigatórios' });
+
+  const { email, name } = googleUserInfo;
+
+  let user = await db.findOne('Users', u => u.email === email);
+
+  if (user) {
+    return res.json({ token: generateToken(user), user: safeUser(user) });
+  }
+
+  // Novo usuário — precisa escolher o papel
+  if (!role || !['TEACHER', 'STUDENT'].includes(role)) {
+    return res.status(202).json({ needsRole: true, email, name });
+  }
+
+  user = await db.insert('Users', {
+    name,
+    email,
+    password: '',
+    role,
+    createdAt: new Date().toISOString(),
+  });
+
+  return res.status(201).json({ token: generateToken(user), user: safeUser(user) });
+}
+
+module.exports = { register, login, me, googleAuth };

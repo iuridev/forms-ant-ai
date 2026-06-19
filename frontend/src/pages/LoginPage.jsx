@@ -3,6 +3,7 @@ import { Form, Input, Button, Card, Typography, Divider, message } from 'antd';
 import { UserOutlined, LockOutlined, BookOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import GoogleLoginButton from '../components/GoogleLoginButton';
 import api from '../api';
 
 const { Title, Text } = Typography;
@@ -33,6 +34,10 @@ export default function LoginPage() {
           <Title level={3} style={{ margin: '12px 0 4px' }}>ProvaFácil</Title>
           <Text type="secondary">Sistema de Avaliações Online</Text>
         </div>
+
+        <GoogleLoginButton />
+
+        <Divider plain><Text type="secondary" style={{ fontSize: 12 }}>ou entre com email</Text></Divider>
 
         <Form layout="vertical" onFinish={handleSubmit} size="large">
           <Form.Item name="email" rules={[{ required: true, type: 'email', message: 'Email válido obrigatório' }]}>
