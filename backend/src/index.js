@@ -34,8 +34,6 @@ const io = new Server(server, {
   cors: { origin: originAllowed, methods: ['GET', 'POST'] },
 });
 
-// Responde preflight OPTIONS imediatamente antes de qualquer rota
-app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
 app.use((req, res, next) => {
