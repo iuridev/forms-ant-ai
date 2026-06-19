@@ -217,7 +217,14 @@ export default function ExamDetail() {
       >
         <Form form={form} layout="vertical" onFinish={handleSaveQuestion}>
           <Form.Item name="type" label="Tipo de Questão" initialValue="MULTIPLE_CHOICE" rules={[{ required: true }]}>
-            <Select onChange={setQuestionType}>
+            <Select onChange={type => {
+              setQuestionType(type);
+              if (type === 'TRUE_FALSE') {
+                form.setFieldValue('options', [{ text: 'Verdadeiro', isCorrect: true }, { text: 'Falso', isCorrect: false }]);
+              } else if (type === 'MULTIPLE_CHOICE') {
+                form.setFieldValue('options', [{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }]);
+              }
+            }}>
               <Select.Option value="MULTIPLE_CHOICE">Múltipla Escolha</Select.Option>
               <Select.Option value="TRUE_FALSE">Verdadeiro ou Falso</Select.Option>
               <Select.Option value="FILL_BLANK">Preencher Lacuna</Select.Option>
