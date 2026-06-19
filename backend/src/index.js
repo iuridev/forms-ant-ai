@@ -12,14 +12,26 @@ const attemptRoutes = require('./routes/attempts');
 const app = express();
 const server = http.createServer(app);
 const ALLOWED_ORIGINS = process.env.FRONTEND_URL
-  ? process.env.FRONTEND_URL.split(',').map(s => s.trim())
+  ? process.env.FRONTEND_URL.split(',').map(s => s.trim().replace(/\/$/, ''))
   : ['http://localhost:5173'];
 
 const io = new Server(server, {
   cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
 });
 
-app.use(cors({ origin: ALLOWED_ORIGINS }));
+app.use(cors({
+  origin: ALLOWED_ORIGINS,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
