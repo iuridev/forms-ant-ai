@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Avatar, Dropdown, Typography, Space } from 'antd';
-import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, BarChartOutlined } from '@ant-design/icons';
+import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Header, Sider, Content } = Layout;
@@ -11,9 +11,14 @@ export default function TeacherLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const selectedKey = location.pathname.startsWith('/professor/alunos')
+    ? '/professor/alunos'
+    : location.pathname;
+
   const menuItems = [
-    { key: '/professor', icon: <BookOutlined />, label: 'Minhas Provas' },
-    { key: '/professor/nova-prova', icon: <PlusOutlined />, label: 'Nova Prova' },
+    { key: '/professor', icon: <BookOutlined />, label: 'Minhas Avaliações' },
+    { key: '/professor/nova-prova', icon: <PlusOutlined />, label: 'Nova Avaliação' },
+    { key: '/professor/alunos', icon: <LineChartOutlined />, label: 'Desenvolvimento' },
   ];
 
   const userMenu = {
@@ -32,7 +37,7 @@ export default function TeacherLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
           style={{ marginTop: 8 }}

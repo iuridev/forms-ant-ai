@@ -203,4 +203,121 @@ async function getResults(req, res) {
   return res.json(result);
 }
 
-module.exports = { createExam, listExams, getExam, updateExam, deleteExam, addQuestion, updateQuestion, deleteQuestion, getResults };
+async function listStudents(req, res) {
+  const teacherExams = await db.findWhere('Exams', e => e.teacherId === req.user.id);
+  const examIds = new Set(teacherExams.map(e => e.id));
+
+  const allAttempts = await db.findWhere('ExamAttempts', a => examIds.has(a.examId) && a.status === 'SUBMITTED');
+  const studentIds = [...new Set(allAttempts.map(a => a.studentId))];
+  const users = await db.readAll('Users');
+
+  const students = studentIds.map(sid => {
+    const student = users.find(u => u.id === sid);
+    const studentAttempts = allAttempts.filter(a => a.studentId === sid);
+    const scores = studentAttempts
+      .filter(a => a.score !== '' && a.maxScore !== '' && Number(a.maxScore) > 0)
+      .map(a => (Number(a.score) / Number(a.maxScore)) * 100);
+    const avgScore = scores.length > 0 ? parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)) : null;
+    const lastAttempt = [...studentAttempts].sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))[0];
+    return {
+      id: sid,
+      name: student?.name || 'Desconhecido',
+      email: student?.email || '',
+      totalAttempts: studentAttempts.length,
+      avgScore,
+      approvedCount: scores.filter(s => s >= 60).length,
+      lastActivity: lastAttempt?.submittedAt,
+    };
+  }).sort((a, b) => (a.name).localeCompare(b.name));
+
+  return res.json(students);
+}
+
+async function getStudentProgress(req, res) {
+  const { studentId } = req.params;
+  const teacherExams = await db.findWhere('Exams', e => e.teacherId === req.user.id);
+  const examMap = Object.fromEntries(teacherExams.map(e => [e.id, e]));
+  const examIds = new Set(teacherExams.map(e => e.id));
+
+  const student = await db.findById('Users', studentId);
+  if (!student) return res.status(404).json({ error: 'Aluno não encontrado' });
+
+  const attempts = await db.findWhere('ExamAttempts', a =>
+    a.studentId === studentId && examIds.has(a.examId) && a.status === 'SUBMITTED'
+  );
+
+  const allAnswers = await db.readAll('Answers');
+  const allViolations = await db.readAll('ViolationLogs');
+  const allQuestions = await db.readAll('Questions');
+
+  const attemptIds = new Set(attempts.map(a => a.id));
+
+  const timeline = attempts.map(a => {
+    const exam = examMap[a.examId];
+    const score = a.score !== '' ? Number(a.score) : null;
+    const maxScore = a.maxScore !== '' ? Number(a.maxScore) : null;
+    const pct = score !== null && maxScore ? parseFloat(((score / maxScore) * 100).toFixed(1)) : null;
+    return {
+      attemptId: a.id, examId: a.examId,
+      examTitle: exam?.title || '', examType: exam?.type || 'PROVA',
+      submittedAt: a.submittedAt, score, maxScore, pct,
+      totalFocusLostSeconds: Number(a.totalFocusLostSeconds) || 0,
+    };
+  }).sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+
+  const scores = timeline.filter(t => t.pct !== null).map(t => t.pct);
+  const avgScore = scores.length > 0 ? parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1)) : null;
+
+  // Desempenho por avaliação (melhor tentativa)
+  const examPerf = {};
+  for (const t of timeline) {
+    if (!examPerf[t.examId] || (t.pct !== null && t.pct > (examPerf[t.examId].bestPct ?? -1))) {
+      examPerf[t.examId] = { ...t, bestPct: t.pct, attempts: 0 };
+    }
+    examPerf[t.examId].attempts++;
+  }
+
+  // Questões com mais erros
+  const questionStats = {};
+  const studentAnswers = allAnswers.filter(a => attemptIds.has(a.attemptId));
+  for (const ans of studentAnswers) {
+    if (!questionStats[ans.questionId]) {
+      const q = allQuestions.find(q => q.id === ans.questionId);
+      questionStats[ans.questionId] = {
+        questionId: ans.questionId, text: q?.text || '',
+        examTitle: examMap[q?.examId]?.title || '',
+        timesAnswered: 0, timesCorrect: 0,
+      };
+    }
+    questionStats[ans.questionId].timesAnswered++;
+    if (ans.isCorrect === 'true') questionStats[ans.questionId].timesCorrect++;
+  }
+  const weakQuestions = Object.values(questionStats)
+    .map(q => ({ ...q, errorRate: parseFloat(((1 - q.timesCorrect / q.timesAnswered) * 100).toFixed(0)) }))
+    .filter(q => q.errorRate > 0)
+    .sort((a, b) => b.errorRate - a.errorRate)
+    .slice(0, 8);
+
+  // Violações
+  const studentViolations = allViolations.filter(v => attemptIds.has(v.attemptId));
+  const violationsByType = {};
+  for (const v of studentViolations) violationsByType[v.type] = (violationsByType[v.type] || 0) + 1;
+
+  return res.json({
+    student: { id: student.id, name: student.name, email: student.email },
+    stats: {
+      totalAttempts: attempts.length,
+      avgScore,
+      bestScore: scores.length > 0 ? Math.max(...scores) : null,
+      worstScore: scores.length > 0 ? Math.min(...scores) : null,
+      approvedCount: scores.filter(s => s >= 60).length,
+      totalViolations: studentViolations.length,
+    },
+    timeline,
+    examPerformance: Object.values(examPerf).sort((a, b) => a.examTitle.localeCompare(b.examTitle)),
+    weakQuestions,
+    violations: violationsByType,
+  });
+}
+
+module.exports = { createExam, listExams, getExam, updateExam, deleteExam, addQuestion, updateQuestion, deleteQuestion, getResults, listStudents, getStudentProgress };
