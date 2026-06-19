@@ -3,7 +3,7 @@ const { randomUUID: uuidv4 } = require('crypto');
 
 const SHEET_SCHEMAS = {
   Users:         ['id', 'name', 'email', 'password', 'role', 'createdAt'],
-  Exams:         ['id', 'title', 'description', 'durationMinutes', 'status', 'accessCode', 'teacherId', 'createdAt', 'updatedAt'],
+  Exams:         ['id', 'title', 'description', 'durationMinutes', 'status', 'accessCode', 'teacherId', 'type', 'maxAttempts', 'createdAt', 'updatedAt'],
   Questions:     ['id', 'examId', 'text', 'type', 'points', 'order', 'correctBlank'],
   Options:       ['id', 'questionId', 'text', 'isCorrect'],
   ExamAttempts:  ['id', 'examId', 'studentId', 'startedAt', 'submittedAt', 'score', 'maxScore', 'status', 'totalFocusLostSeconds'],

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Button, Table, Tag, Space, Typography, Statistic, Row, Col, Popconfirm, message, Empty, Badge } from 'antd';
-import { PlusOutlined, EyeOutlined, BarChartOutlined, DeleteOutlined, EditOutlined, CopyOutlined } from '@ant-design/icons';
+import { Card, Button, Table, Tag, Space, Typography, Statistic, Row, Col, Popconfirm, message, Empty, Badge, Tabs } from 'antd';
+import { PlusOutlined, EyeOutlined, BarChartOutlined, DeleteOutlined, CopyOutlined, FileTextOutlined, BookOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 
@@ -15,13 +15,14 @@ const STATUS_CONFIG = {
 export default function TeacherDashboard() {
   const [exams, setExams] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('PROVA');
   const navigate = useNavigate();
 
   async function fetchExams() {
     try {
       const res = await api.get('/exams');
       setExams(res.data);
-    } catch { message.error('Erro ao carregar provas'); }
+    } catch { message.error('Erro ao carregar avaliações'); }
     finally { setLoading(false); }
   }
 
@@ -30,7 +31,7 @@ export default function TeacherDashboard() {
   async function deleteExam(id) {
     try {
       await api.delete(`/exams/${id}`);
-      message.success('Prova excluída');
+      message.success('Excluído com sucesso');
       setExams(prev => prev.filter(e => e.id !== id));
     } catch { message.error('Erro ao excluir'); }
   }
@@ -40,18 +41,24 @@ export default function TeacherDashboard() {
     message.success('Código copiado!');
   }
 
-  const total = exams.length;
-  const active = exams.filter(e => e.status === 'ACTIVE').length;
+  const provas = exams.filter(e => (e.type || 'PROVA') === 'PROVA');
+  const tarefas = exams.filter(e => e.type === 'TAREFA');
+  const filtered = tab === 'PROVA' ? provas : tarefas;
+
+  const activeProvas = provas.filter(e => e.status === 'ACTIVE').length;
+  const activeTarefas = tarefas.filter(e => e.status === 'ACTIVE').length;
   const totalAttempts = exams.reduce((acc, e) => acc + (e._count?.attempts || 0), 0);
 
   const columns = [
     {
-      title: 'Prova', dataIndex: 'title', key: 'title',
+      title: tab === 'TAREFA' ? 'Tarefa' : 'Prova',
+      dataIndex: 'title', key: 'title',
       render: (text, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{text}</Text>
           <Space>
             <Tag>{record.durationMinutes} min</Tag>
+            {record.type === 'TAREFA' && <Tag color="blue">3 tentativas</Tag>}
             <Text type="secondary" style={{ fontSize: 12 }}>{record._count?.questions || 0} questões</Text>
           </Space>
         </Space>
@@ -79,8 +86,10 @@ export default function TeacherDashboard() {
       render: (_, record) => (
         <Space>
           <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/professor/prova/${record.id}`)}>Ver</Button>
-          <Button size="small" icon={<BarChartOutlined />} onClick={() => navigate(`/professor/prova/${record.id}/resultados`)}>Notas</Button>
-          <Popconfirm title="Excluir esta prova?" onConfirm={() => deleteExam(record.id)} okText="Sim" cancelText="Não">
+          <Button size="small" icon={<BarChartOutlined />} onClick={() => navigate(`/professor/prova/${record.id}/resultados`)}>
+            {record.type === 'TAREFA' ? 'Resultados' : 'Notas'}
+          </Button>
+          <Popconfirm title="Excluir?" onConfirm={() => deleteExam(record.id)} okText="Sim" cancelText="Não">
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -91,25 +100,34 @@ export default function TeacherDashboard() {
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Minhas Provas</Title>
+        <Title level={3} style={{ margin: 0 }}>Minhas Avaliações</Title>
         <Button type="primary" icon={<PlusOutlined />} size="large" onClick={() => navigate('/professor/nova-prova')}>
-          Nova Prova
+          Nova Avaliação
         </Button>
       </div>
 
       <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={8}><Card><Statistic title="Total de Provas" value={total} /></Card></Col>
-        <Col span={8}><Card><Statistic title="Provas Ativas" value={active} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-        <Col span={8}><Card><Statistic title="Tentativas Totais" value={totalAttempts} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Provas" value={provas.length} prefix={<FileTextOutlined />} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Tarefas" value={tarefas.length} prefix={<BookOutlined />} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Ativas" value={activeProvas + activeTarefas} valueStyle={{ color: '#52c41a' }} /></Card></Col>
+        <Col span={6}><Card><Statistic title="Tentativas" value={totalAttempts} /></Card></Col>
       </Row>
 
       <Card>
+        <Tabs
+          activeKey={tab}
+          onChange={setTab}
+          items={[
+            { key: 'PROVA', label: <Space><FileTextOutlined />Provas ({provas.length})</Space> },
+            { key: 'TAREFA', label: <Space><BookOutlined />Tarefas ({tarefas.length})</Space> },
+          ]}
+        />
         <Table
-          dataSource={exams}
+          dataSource={filtered}
           columns={columns}
           rowKey="id"
           loading={loading}
-          locale={{ emptyText: <Empty description="Nenhuma prova criada ainda" /> }}
+          locale={{ emptyText: <Empty description={tab === 'TAREFA' ? 'Nenhuma tarefa criada ainda' : 'Nenhuma prova criada ainda'} /> }}
           pagination={{ pageSize: 10 }}
         />
       </Card>

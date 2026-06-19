@@ -8,8 +8,11 @@ function generateCode() {
 }
 
 async function createExam(req, res) {
-  const { title, description, durationMinutes } = req.body;
+  const { title, description, durationMinutes, type } = req.body;
   if (!title) return res.status(400).json({ error: 'Título é obrigatório' });
+
+  const examType = type === 'TAREFA' ? 'TAREFA' : 'PROVA';
+  const maxAttempts = examType === 'TAREFA' ? 3 : 1;
 
   let accessCode;
   let exists = true;
@@ -21,7 +24,9 @@ async function createExam(req, res) {
   const now = new Date().toISOString();
   const exam = await db.insert('Exams', {
     title, description: description || '', durationMinutes: durationMinutes || 60,
-    status: 'DRAFT', accessCode, teacherId: req.user.id, createdAt: now, updatedAt: now,
+    status: 'DRAFT', accessCode, teacherId: req.user.id,
+    type: examType, maxAttempts: String(maxAttempts),
+    createdAt: now, updatedAt: now,
   });
   return res.status(201).json(exam);
 }
@@ -61,9 +66,12 @@ async function getExam(req, res) {
 }
 
 async function updateExam(req, res) {
-  const { title, description, durationMinutes, status } = req.body;
+  const { title, description, durationMinutes, status, type } = req.body;
   const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
   if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
+
+  const newType = type !== undefined ? (type === 'TAREFA' ? 'TAREFA' : 'PROVA') : exam.type || 'PROVA';
+  const newMaxAttempts = newType === 'TAREFA' ? '3' : '1';
 
   const updated = await db.update('Exams', req.params.id, {
     ...exam,
@@ -71,6 +79,8 @@ async function updateExam(req, res) {
     ...(description !== undefined && { description }),
     ...(durationMinutes !== undefined && { durationMinutes }),
     ...(status !== undefined && { status }),
+    type: newType,
+    maxAttempts: newMaxAttempts,
     updatedAt: new Date().toISOString(),
   });
   return res.json(updated);

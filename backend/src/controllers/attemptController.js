@@ -6,14 +6,28 @@ async function startExam(req, res) {
 
   const exam = await db.findOne('Exams', e => e.accessCode === accessCode.toUpperCase().trim());
   if (!exam) return res.status(404).json({ error: 'Código inválido' });
-  if (exam.status !== 'ACTIVE') return res.status(403).json({ error: 'Esta prova não está disponível no momento' });
+  if (exam.status !== 'ACTIVE') return res.status(403).json({ error: 'Esta avaliação não está disponível no momento' });
 
-  const existing = await db.findOne('ExamAttempts', a => a.studentId === req.user.id && a.examId === exam.id);
-  if (existing && existing.status !== 'IN_PROGRESS') {
-    return res.status(409).json({ error: 'Você já realizou esta prova' });
+  const maxAttempts = Number(exam.maxAttempts) || 1;
+  const examType = exam.type || 'PROVA';
+
+  // Se há tentativa em andamento, retorna ela
+  const inProgress = await db.findOne('ExamAttempts', a =>
+    a.studentId === req.user.id && a.examId === exam.id && a.status === 'IN_PROGRESS'
+  );
+  if (inProgress) {
+    return res.json({ attempt: inProgress, exam: await buildSanitizedExam(exam), attemptsUsed: null, maxAttempts, examType });
   }
-  if (existing) {
-    return res.json({ attempt: existing, exam: await buildSanitizedExam(exam) });
+
+  // Conta tentativas concluídas
+  const submitted = await db.findWhere('ExamAttempts', a =>
+    a.studentId === req.user.id && a.examId === exam.id && a.status === 'SUBMITTED'
+  );
+  if (submitted.length >= maxAttempts) {
+    const msg = examType === 'TAREFA'
+      ? `Você já utilizou todas as ${maxAttempts} tentativas desta tarefa`
+      : 'Você já realizou esta prova';
+    return res.status(409).json({ error: msg, attemptsUsed: submitted.length, maxAttempts });
   }
 
   const attempt = await db.insert('ExamAttempts', {
@@ -22,7 +36,7 @@ async function startExam(req, res) {
     score: '', maxScore: '', status: 'IN_PROGRESS', totalFocusLostSeconds: '0',
   });
 
-  return res.status(201).json({ attempt, exam: await buildSanitizedExam(exam) });
+  return res.status(201).json({ attempt, exam: await buildSanitizedExam(exam), attemptsUsed: submitted.length + 1, maxAttempts, examType });
 }
 
 async function buildSanitizedExam(exam) {
@@ -134,17 +148,26 @@ async function logViolation(req, res) {
 }
 
 async function getMyAttempts(req, res) {
-  const attempts = await db.findWhere('ExamAttempts', a => a.studentId === req.user.id && a.status !== 'IN_PROGRESS');
+  const allAttempts = await db.findWhere('ExamAttempts', a => a.studentId === req.user.id);
   const exams = await db.readAll('Exams');
 
-  const result = attempts.map(a => {
+  const submitted = allAttempts.filter(a => a.status === 'SUBMITTED');
+
+  const result = submitted.map(a => {
     const exam = exams.find(e => e.id === a.examId);
+    const examType = exam?.type || 'PROVA';
+    const maxAttempts = Number(exam?.maxAttempts) || 1;
+    const attemptsOnExam = submitted.filter(s => s.examId === a.examId).length;
     return {
       ...a,
       score: a.score !== '' ? Number(a.score) : null,
       maxScore: a.maxScore !== '' ? Number(a.maxScore) : null,
       totalFocusLostSeconds: Number(a.totalFocusLostSeconds) || 0,
-      exam: exam ? { title: exam.title, durationMinutes: Number(exam.durationMinutes) } : null,
+      exam: exam ? {
+        title: exam.title, durationMinutes: Number(exam.durationMinutes),
+        type: examType, maxAttempts, accessCode: exam.accessCode,
+        attemptsUsed: attemptsOnExam, remainingAttempts: Math.max(0, maxAttempts - attemptsOnExam),
+      } : null,
     };
   }).sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
 
@@ -173,12 +196,23 @@ async function getAttemptDetail(req, res) {
     };
   });
 
+  const allAttempts = exam
+    ? await db.findWhere('ExamAttempts', a => a.studentId === req.user.id && a.examId === exam.id && a.status === 'SUBMITTED')
+    : [];
+  const maxAttempts = Number(exam?.maxAttempts) || 1;
+  const examType = exam?.type || 'PROVA';
+
   return res.json({
     ...attempt,
     score: attempt.score !== '' ? Number(attempt.score) : null,
     maxScore: attempt.maxScore !== '' ? Number(attempt.maxScore) : null,
     totalFocusLostSeconds: Number(attempt.totalFocusLostSeconds) || 0,
-    exam: exam ? { title: exam.title } : null,
+    exam: exam ? {
+      title: exam.title, type: examType, maxAttempts,
+      accessCode: exam.accessCode,
+      attemptsUsed: allAttempts.length,
+      remainingAttempts: Math.max(0, maxAttempts - allAttempts.length),
+    } : null,
     violations: violations.map(v => ({ ...v, durationSeconds: Number(v.durationSeconds) || 0 })),
     answers: enrichedAnswers,
   });
