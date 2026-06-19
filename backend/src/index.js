@@ -15,16 +15,28 @@ const ALLOWED_ORIGINS = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(s => s.trim().replace(/\/$/, ''))
   : ['http://localhost:5173'];
 
-const io = new Server(server, {
-  cors: { origin: ALLOWED_ORIGINS, methods: ['GET', 'POST'] },
-});
+function originAllowed(origin, callback) {
+  // Permite requests sem origin (Postman, curl, server-to-server)
+  if (!origin) return callback(null, true);
+  const normalized = origin.replace(/\/$/, '');
+  if (ALLOWED_ORIGINS.includes(normalized)) return callback(null, true);
+  callback(new Error(`CORS: origin não permitida: ${origin}`));
+}
 
-app.use(cors({
-  origin: ALLOWED_ORIGINS,
+const corsOptions = {
+  origin: originAllowed,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+};
+
+const io = new Server(server, {
+  cors: { origin: originAllowed, methods: ['GET', 'POST'] },
+});
+
+// Responde preflight OPTIONS imediatamente antes de qualquer rota
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
