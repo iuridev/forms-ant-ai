@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Avatar, Dropdown, Typography, Space } from 'antd';
-import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, LineChartOutlined } from '@ant-design/icons';
+import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Header, Sider, Content } = Layout;
@@ -13,11 +13,14 @@ export default function TeacherLayout() {
 
   const selectedKey = location.pathname.startsWith('/professor/alunos')
     ? '/professor/alunos'
+    : location.pathname.startsWith('/professor/turmas')
+    ? '/professor/turmas'
     : location.pathname;
 
   const menuItems = [
     { key: '/professor', icon: <BookOutlined />, label: 'Minhas Avaliações' },
     { key: '/professor/nova-prova', icon: <PlusOutlined />, label: 'Nova Avaliação' },
+    { key: '/professor/turmas', icon: <TeamOutlined />, label: 'Turmas' },
     { key: '/professor/alunos', icon: <LineChartOutlined />, label: 'Desenvolvimento' },
   ];
 

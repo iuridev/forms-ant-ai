@@ -13,6 +13,7 @@ import ExamDetail from './pages/teacher/ExamDetail';
 import ExamResults from './pages/teacher/ExamResults';
 import StudentProgress from './pages/teacher/StudentProgress';
 import StudentDetail from './pages/teacher/StudentDetail';
+import GroupsPage from './pages/teacher/GroupsPage';
 import StudentLayout from './pages/student/StudentLayout';
 import StudentDashboard from './pages/student/StudentDashboard';
 import ExamRoom from './pages/student/ExamRoom';
@@ -45,6 +46,7 @@ function AppRoutes() {
         <Route path="prova/:id" element={<ExamDetail />} />
         <Route path="prova/:id/editar" element={<ExamForm />} />
         <Route path="prova/:id/resultados" element={<ExamResults />} />
+        <Route path="turmas" element={<GroupsPage />} />
         <Route path="alunos" element={<StudentProgress />} />
         <Route path="alunos/:studentId" element={<StudentDetail />} />
       </Route>

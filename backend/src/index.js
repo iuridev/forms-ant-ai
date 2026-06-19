@@ -8,6 +8,7 @@ const db = require('./services/sheetsDb');
 const authRoutes = require('./routes/auth');
 const examRoutes = require('./routes/exams');
 const attemptRoutes = require('./routes/attempts');
+const groupRoutes = require('./routes/groups');
 
 const app = express();
 const server = http.createServer(app);
@@ -47,6 +48,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/attempts', attemptRoutes);
+app.use('/api/groups', groupRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 io.on('connection', (socket) => {

@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined,
-  PlayCircleOutlined, PauseCircleOutlined, StopOutlined, CopyOutlined
+  PlayCircleOutlined, PauseCircleOutlined, StopOutlined, CopyOutlined, TeamOutlined
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
@@ -34,6 +34,7 @@ export default function ExamDetail() {
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [form] = Form.useForm();
   const [questionType, setQuestionType] = useState('MULTIPLE_CHOICE');
+  const [groups, setGroups] = useState([]);
 
   async function fetchExam() {
     try {
@@ -43,7 +44,14 @@ export default function ExamDetail() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { fetchExam(); }, [id]);
+  async function fetchGroups() {
+    try {
+      const res = await api.get(`/groups/for-exam/${id}`);
+      setGroups(res.data);
+    } catch {}
+  }
+
+  useEffect(() => { fetchExam(); fetchGroups(); }, [id]);
 
   function openAddQuestion() {
     setEditingQuestion(null);
@@ -95,6 +103,21 @@ export default function ExamDetail() {
       message.success(newStatus === 'ACTIVE' ? 'Prova ativada! Os alunos já podem acessar.' : 'Prova encerrada.');
       fetchExam();
     } catch { message.error('Erro ao alterar status'); }
+  }
+
+  async function toggleGroupLink(group, linked) {
+    try {
+      if (linked) {
+        await api.post(`/groups/${group.id}/exams`, { examId: id });
+        message.success(`Vinculada à turma "${group.name}"`);
+      } else {
+        await api.delete(`/groups/${group.id}/exams/${id}`);
+        message.success(`Desvinculada da turma "${group.name}"`);
+      }
+      setGroups(prev => prev.map(g => g.id === group.id ? { ...g, linked } : g));
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Erro ao alterar vínculo');
+    }
   }
 
   function copyCode() {
@@ -207,6 +230,38 @@ export default function ExamDetail() {
           />
         )}
       </Card>
+
+      {groups.length > 0 && (
+        <Card
+          title={<Space><TeamOutlined /><Text strong>Turmas Vinculadas</Text></Space>}
+          style={{ marginTop: 16 }}
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>Alunos dessas turmas verão esta avaliação no painel</Text>}
+        >
+          <Space wrap>
+            {groups.map(g => (
+              <Card
+                key={g.id}
+                size="small"
+                style={{ minWidth: 200 }}
+                bodyStyle={{ padding: '12px 16px' }}
+              >
+                <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                  <Space direction="vertical" size={0}>
+                    <Text strong>{g.name}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>{g.memberCount} aluno(s)</Text>
+                  </Space>
+                  <Switch
+                    checked={g.linked}
+                    checkedChildren="Vinculada"
+                    unCheckedChildren="Desvincular"
+                    onChange={checked => toggleGroupLink(g, checked)}
+                  />
+                </Space>
+              </Card>
+            ))}
+          </Space>
+        </Card>
+      )}
 
       <Modal
         title={editingQuestion ? 'Editar Questão' : 'Nova Questão'}

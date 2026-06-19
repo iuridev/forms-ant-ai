@@ -1,11 +1,24 @@
 const db = require('../services/sheetsDb');
 
 async function startExam(req, res) {
-  const { accessCode } = req.body;
-  if (!accessCode) return res.status(400).json({ error: 'Código de acesso é obrigatório' });
+  const { accessCode, examId: examIdDirect } = req.body;
 
-  const exam = await db.findOne('Exams', e => e.accessCode === accessCode.toUpperCase().trim());
-  if (!exam) return res.status(404).json({ error: 'Código inválido' });
+  let exam;
+  if (examIdDirect) {
+    exam = await db.findById('Exams', examIdDirect);
+    if (!exam) return res.status(404).json({ error: 'Avaliação não encontrada' });
+    // Verifica se o aluno pertence a uma turma vinculada
+    const memberships = await db.findWhere('GroupMembers', m => m.studentId === req.user.id);
+    const groupIds = new Set(memberships.map(m => m.groupId));
+    const link = await db.findOne('ExamGroups', eg => eg.examId === exam.id && groupIds.has(eg.groupId));
+    if (!link) return res.status(403).json({ error: 'Você não tem acesso a esta avaliação' });
+  } else if (accessCode) {
+    exam = await db.findOne('Exams', e => e.accessCode === accessCode.toUpperCase().trim());
+    if (!exam) return res.status(404).json({ error: 'Código inválido' });
+  } else {
+    return res.status(400).json({ error: 'Código de acesso ou ID da avaliação é obrigatório' });
+  }
+
   if (exam.status !== 'ACTIVE') return res.status(403).json({ error: 'Esta avaliação não está disponível no momento' });
 
   const maxAttempts = Number(exam.maxAttempts) || 1;
