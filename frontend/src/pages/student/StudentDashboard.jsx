@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   Card, Button, Input, Form, Typography, message, Space, Table, Tag, Progress,
-  Empty, Alert, Tooltip, Badge,
+  Empty, Alert, Tooltip, Badge, List, Avatar,
 } from 'antd';
 import {
   LoginOutlined, HistoryOutlined, CheckCircleOutlined, CloseCircleOutlined,
   BookOutlined, FileTextOutlined, CopyOutlined, TeamOutlined, BellOutlined,
+  PlayCircleOutlined, SlidersFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,12 +20,14 @@ export default function StudentDashboard() {
   const [attempts, setAttempts] = useState([]);
   const [pending, setPending] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(true);
+  const [aulas, setAulas] = useState([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
   useEffect(() => {
     api.get('/attempts/my').then(res => setAttempts(res.data)).catch(() => {});
     api.get('/groups/my-pending').then(res => setPending(res.data)).catch(() => {}).finally(() => setPendingLoading(false));
+    api.get('/aulas/my').then(res => setAulas(res.data)).catch(() => {});
   }, []);
 
   async function handleEnterExam({ code }) {
@@ -186,6 +189,45 @@ export default function StudentDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Aulas da turma */}
+      {aulas.length > 0 && (
+        <Card
+          title={<Space><SlidersFilled style={{ color: '#52c41a' }} /><Text strong>Aulas da Turma</Text></Space>}
+          style={{ marginBottom: 16 }}
+        >
+          <List
+            dataSource={aulas}
+            rowKey="id"
+            renderItem={(aula, idx) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="open"
+                    type="primary"
+                    size="small"
+                    icon={<PlayCircleOutlined />}
+                    onClick={() => navigate(`/aluno/aula/${aula.id}`)}
+                  >
+                    Assistir
+                  </Button>,
+                ]}
+              >
+                <List.Item.Meta
+                  avatar={<Avatar style={{ background: '#52c41a', fontWeight: 700 }}>{idx + 1}</Avatar>}
+                  title={<Text strong>{aula.title}</Text>}
+                  description={
+                    <Space>
+                      <Tag icon={<TeamOutlined />} color="blue">{aula.groupName}</Tag>
+                      {aula.description && <Text type="secondary" style={{ fontSize: 12 }}>{aula.description}</Text>}
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
 
       {/* Avaliações pendentes da turma */}
       {!pendingLoading && pending.length > 0 && (

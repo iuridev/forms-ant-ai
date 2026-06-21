@@ -2,14 +2,27 @@ import { useEffect, useState } from 'react';
 import {
   Card, Button, Typography, Space, Tag, Table, Input, Form,
   Modal, Drawer, Tabs, Popconfirm, message, Empty, Switch, Row, Col, Spin,
+  List, Avatar,
 } from 'antd';
 import {
   PlusOutlined, TeamOutlined, DeleteOutlined, BookOutlined,
-  FileTextOutlined, UserAddOutlined, CloseOutlined,
+  FileTextOutlined, UserAddOutlined, CloseOutlined, PlayCircleOutlined,
+  EditOutlined, SlidersFilled,
 } from '@ant-design/icons';
 import api from '../../api';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
+
+function toEmbedUrl(url) {
+  if (!url) return '';
+  try {
+    const match = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+    if (!match) return url;
+    return `https://docs.google.com/presentation/d/${match[1]}/embed?start=false&loop=false&delayms=3000`;
+  } catch {
+    return url;
+  }
+}
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState([]);
@@ -24,6 +37,14 @@ export default function GroupsPage() {
   const [addCodeInput, setAddCodeInput] = useState('');
   const [addingMember, setAddingMember] = useState(false);
   const [form] = Form.useForm();
+
+  // Aulas state
+  const [aulas, setAulas] = useState([]);
+  const [aulasLoading, setAulasLoading] = useState(false);
+  const [aulaModalOpen, setAulaModalOpen] = useState(false);
+  const [editingAula, setEditingAula] = useState(null);
+  const [aulaPreview, setAulaPreview] = useState(null);
+  const [aulaForm] = Form.useForm();
 
   async function fetchGroups() {
     try {
@@ -45,6 +66,15 @@ export default function GroupsPage() {
     fetchExams();
   }, []);
 
+  async function fetchAulas(groupId) {
+    setAulasLoading(true);
+    try {
+      const res = await api.get(`/aulas/group/${groupId}`);
+      setAulas(res.data);
+    } catch { message.error('Erro ao carregar aulas'); }
+    finally { setAulasLoading(false); }
+  }
+
   async function openGroup(group) {
     setSelectedGroup(group);
     setDrawerOpen(true);
@@ -57,6 +87,7 @@ export default function GroupsPage() {
         linked: detailRes.data.exams.some(ge => ge.examId === e.id),
       }));
       setExamsForGroup(examsWithLinked);
+      await fetchAulas(group.id);
     } catch { message.error('Erro ao carregar turma'); }
     finally { setDetailLoading(false); }
   }
@@ -123,6 +154,43 @@ export default function GroupsPage() {
     } catch (err) {
       message.error(err.response?.data?.error || 'Erro ao alterar vínculo');
     }
+  }
+
+  function openAddAula() {
+    setEditingAula(null);
+    aulaForm.resetFields();
+    setAulaModalOpen(true);
+  }
+
+  function openEditAula(aula) {
+    setEditingAula(aula);
+    aulaForm.setFieldsValue({ title: aula.title, description: aula.description, slideUrl: aula.slideUrl });
+    setAulaModalOpen(true);
+  }
+
+  async function saveAula(values) {
+    try {
+      if (editingAula) {
+        await api.put(`/aulas/${editingAula.id}`, values);
+        message.success('Aula atualizada!');
+      } else {
+        await api.post(`/aulas/group/${selectedGroup.id}`, values);
+        message.success('Aula cadastrada!');
+      }
+      setAulaModalOpen(false);
+      aulaForm.resetFields();
+      fetchAulas(selectedGroup.id);
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Erro ao salvar aula');
+    }
+  }
+
+  async function deleteAula(aulaId) {
+    try {
+      await api.delete(`/aulas/${aulaId}`);
+      message.success('Aula removida');
+      fetchAulas(selectedGroup.id);
+    } catch { message.error('Erro ao remover aula'); }
   }
 
   const memberColumns = [
@@ -243,12 +311,71 @@ export default function GroupsPage() {
         </Form>
       </Modal>
 
+      {/* Modal adicionar/editar aula */}
+      <Modal
+        title={editingAula ? 'Editar Aula' : 'Nova Aula'}
+        open={aulaModalOpen}
+        onCancel={() => { setAulaModalOpen(false); aulaForm.resetFields(); }}
+        footer={null}
+        width={560}
+      >
+        <Form form={aulaForm} layout="vertical" onFinish={saveAula}>
+          <Form.Item name="title" label="Título da aula" rules={[{ required: true, message: 'Informe o título' }]}>
+            <Input placeholder="Ex: Introdução à Matemática" />
+          </Form.Item>
+          <Form.Item name="description" label="Descrição (opcional)">
+            <Input.TextArea placeholder="Resumo do conteúdo da aula..." rows={2} />
+          </Form.Item>
+          <Form.Item
+            name="slideUrl"
+            label="Link do Google Slides"
+            rules={[
+              { required: true, message: 'Informe o link do Google Slides' },
+              {
+                validator: (_, value) => {
+                  if (!value || value.includes('docs.google.com/presentation')) return Promise.resolve();
+                  return Promise.reject('Informe um link válido do Google Slides');
+                },
+              },
+            ]}
+          >
+            <Input placeholder="https://docs.google.com/presentation/d/..." />
+          </Form.Item>
+          <Space>
+            <Button type="primary" htmlType="submit">{editingAula ? 'Salvar' : 'Cadastrar Aula'}</Button>
+            <Button onClick={() => { setAulaModalOpen(false); aulaForm.resetFields(); }}>Cancelar</Button>
+          </Space>
+        </Form>
+      </Modal>
+
+      {/* Modal prévia dos slides */}
+      <Modal
+        title={aulaPreview?.title}
+        open={!!aulaPreview}
+        onCancel={() => setAulaPreview(null)}
+        footer={null}
+        width={860}
+        styles={{ body: { padding: 0 } }}
+      >
+        {aulaPreview && (
+          <iframe
+            src={toEmbedUrl(aulaPreview.slideUrl)}
+            width="100%"
+            height="480"
+            frameBorder="0"
+            allowFullScreen
+            title={aulaPreview.title}
+            style={{ display: 'block' }}
+          />
+        )}
+      </Modal>
+
       {/* Drawer de detalhes */}
       <Drawer
         title={selectedGroup?.name}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        width={640}
+        width={680}
       >
         {detailLoading ? <Spin style={{ display: 'block', marginTop: 40 }} /> : groupDetail && (
           <Tabs
@@ -299,6 +426,67 @@ export default function GroupsPage() {
                     pagination={false}
                     locale={{ emptyText: <Empty description="Nenhuma avaliação cadastrada" /> }}
                   />
+                ),
+              },
+              {
+                key: 'aulas',
+                label: <Space><SlidersFilled />Aulas ({aulas.length})</Space>,
+                children: (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={openAddAula}>
+                        Nova Aula
+                      </Button>
+                    </div>
+                    {aulasLoading ? <Spin /> : aulas.length === 0 ? (
+                      <Empty description="Nenhuma aula cadastrada ainda">
+                        <Button icon={<PlusOutlined />} onClick={openAddAula}>Adicionar primeira aula</Button>
+                      </Empty>
+                    ) : (
+                      <List
+                        dataSource={aulas}
+                        rowKey="id"
+                        renderItem={(aula, idx) => (
+                          <List.Item
+                            actions={[
+                              <Button
+                                key="preview"
+                                size="small"
+                                icon={<PlayCircleOutlined />}
+                                onClick={() => setAulaPreview(aula)}
+                              >
+                                Prévia
+                              </Button>,
+                              <Button
+                                key="edit"
+                                size="small"
+                                icon={<EditOutlined />}
+                                onClick={() => openEditAula(aula)}
+                              />,
+                              <Popconfirm
+                                key="del"
+                                title="Remover esta aula?"
+                                onConfirm={() => deleteAula(aula.id)}
+                                okText="Remover" cancelText="Cancelar"
+                              >
+                                <Button size="small" danger icon={<DeleteOutlined />} />
+                              </Popconfirm>,
+                            ]}
+                          >
+                            <List.Item.Meta
+                              avatar={
+                                <Avatar style={{ background: '#1677ff', fontWeight: 700 }}>
+                                  {idx + 1}
+                                </Avatar>
+                              }
+                              title={<Text strong>{aula.title}</Text>}
+                              description={aula.description || <Text type="secondary" style={{ fontSize: 12 }}>Sem descrição</Text>}
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    )}
+                  </div>
                 ),
               },
             ]}

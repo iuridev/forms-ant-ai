@@ -18,6 +18,7 @@ import StudentLayout from './pages/student/StudentLayout';
 import StudentDashboard from './pages/student/StudentDashboard';
 import ExamRoom from './pages/student/ExamRoom';
 import AttemptResult from './pages/student/AttemptResult';
+import AulaView from './pages/student/AulaView';
 
 function PrivateRoute({ children, role }) {
   const { user, loading } = useAuth();
@@ -55,6 +56,8 @@ function AppRoutes() {
         <Route index element={<StudentDashboard />} />
         <Route path="resultado/:id" element={<AttemptResult />} />
       </Route>
+
+      <Route path="/aluno/aula/:id" element={<PrivateRoute role="STUDENT"><AulaView /></PrivateRoute>} />
 
       <Route path="/sala/:id" element={<PrivateRoute role="STUDENT"><ExamRoom /></PrivateRoute>} />
 

@@ -12,6 +12,7 @@ const SHEET_SCHEMAS = {
   ExamAttempts:  ['id', 'examId', 'studentId', 'startedAt', 'submittedAt', 'score', 'maxScore', 'status', 'totalFocusLostSeconds'],
   Answers:       ['id', 'attemptId', 'questionId', 'selectedOptionId', 'textAnswer', 'isCorrect', 'pointsEarned'],
   ViolationLogs: ['id', 'attemptId', 'type', 'details', 'timestamp', 'durationSeconds'],
+  Aulas: ['id', 'title', 'description', 'slideUrl', 'groupId', 'teacherId', 'order', 'createdAt'],
 };
 
 class SheetsDB {
