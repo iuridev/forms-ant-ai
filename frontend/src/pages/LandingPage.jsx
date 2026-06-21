@@ -76,7 +76,7 @@ export default function LandingPage() {
           <Title level={1} style={{ color: '#fff', fontSize: 54, fontWeight: 800, lineHeight: 1.15, margin: '0 0 20px' }}>
             Aplique provas online<br />
             <span style={{ background: 'linear-gradient(90deg, #1677ff, #52c41a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              sem precisar corrigir
+              com Correção automática!
             </span>
           </Title>
           <Paragraph style={{ color: '#8ba3c7', fontSize: 18, maxWidth: 560, margin: '0 auto 40px', lineHeight: 1.7 }}>
