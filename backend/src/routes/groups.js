@@ -6,12 +6,16 @@ const {
   assignExam, unassignExam,
   getGroupsForExam,
   getPendingAssignments,
+  getMyGroups,
+  getMyProgressInGroup,
 } = require('../controllers/groupController');
 
 const router = express.Router();
 
 // Rotas de aluno — registradas antes do middleware requireTeacher
 router.get('/my-pending', authenticate, requireStudent, getPendingAssignments);
+router.get('/my-groups', authenticate, requireStudent, getMyGroups);
+router.get('/:id/my-progress', authenticate, requireStudent, getMyProgressInGroup);
 
 // Rota usada pelo ExamDetail para saber quais turmas estão vinculadas
 router.get('/for-exam/:examId', authenticate, requireTeacher, getGroupsForExam);

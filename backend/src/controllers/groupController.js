@@ -216,10 +216,80 @@ async function getPendingAssignments(req, res) {
   return res.json(result);
 }
 
+async function getMyGroups(req, res) {
+  const memberships = await db.findWhere('GroupMembers', m => m.studentId === req.user.id);
+  if (memberships.length === 0) return res.json([]);
+
+  const allGroups = await db.readAll('Groups');
+  const allAulas = await db.readAll('Aulas');
+  const allExamGroups = await db.readAll('ExamGroups');
+
+  const result = memberships.map(m => {
+    const group = allGroups.find(g => g.id === m.groupId);
+    if (!group) return null;
+    return {
+      ...group,
+      addedAt: m.addedAt,
+      aulaCount: allAulas.filter(a => a.groupId === group.id).length,
+      examCount: allExamGroups.filter(eg => eg.groupId === group.id).length,
+    };
+  }).filter(Boolean);
+
+  return res.json(result);
+}
+
+async function getMyProgressInGroup(req, res) {
+  const membership = await db.findOne('GroupMembers', m =>
+    m.groupId === req.params.id && m.studentId === req.user.id
+  );
+  if (!membership) return res.status(403).json({ error: 'Você não faz parte desta turma' });
+
+  const group = await db.findById('Groups', req.params.id);
+  if (!group) return res.status(404).json({ error: 'Turma não encontrada' });
+
+  const aulas = await db.findWhere('Aulas', a => a.groupId === req.params.id);
+  aulas.sort((a, b) => Number(a.order) - Number(b.order));
+
+  const examGroups = await db.findWhere('ExamGroups', eg => eg.groupId === req.params.id);
+  const allExams = await db.readAll('Exams');
+  const allAttempts = await db.findWhere('ExamAttempts', a => a.studentId === req.user.id);
+
+  const exams = examGroups.map(eg => {
+    const exam = allExams.find(e => e.id === eg.examId);
+    if (!exam || exam.status === 'DRAFT') return null;
+
+    const submitted = allAttempts.filter(a => a.examId === exam.id && a.status === 'SUBMITTED');
+    submitted.sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+    const best = [...submitted].sort((a, b) => Number(b.score) - Number(a.score))[0];
+
+    return {
+      examId: exam.id,
+      title: exam.title,
+      type: exam.type || 'PROVA',
+      status: exam.status,
+      maxAttempts: Number(exam.maxAttempts) || 1,
+      attemptsCount: submitted.length,
+      bestScore: best ? Number(best.score) : null,
+      bestMaxScore: best ? Number(best.maxScore) : null,
+      latestAttemptId: submitted[0]?.id || null,
+      attempts: submitted.map(a => ({
+        id: a.id,
+        score: Number(a.score),
+        maxScore: Number(a.maxScore),
+        submittedAt: a.submittedAt,
+      })),
+    };
+  }).filter(Boolean);
+
+  return res.json({ group, aulas, exams });
+}
+
 module.exports = {
   createGroup, listGroups, getGroup, updateGroup, deleteGroup,
   addMember, removeMember,
   assignExam, unassignExam,
   getGroupsForExam,
   getPendingAssignments,
+  getMyGroups,
+  getMyProgressInGroup,
 };

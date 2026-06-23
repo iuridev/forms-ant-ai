@@ -6,7 +6,7 @@ import {
 import {
   LoginOutlined, HistoryOutlined, CheckCircleOutlined, CloseCircleOutlined,
   BookOutlined, FileTextOutlined, CopyOutlined, TeamOutlined, BellOutlined,
-  PlayCircleOutlined, SlidersFilled,
+  PlayCircleOutlined, SlidersFilled, RightOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,6 +21,7 @@ export default function StudentDashboard() {
   const [pending, setPending] = useState([]);
   const [pendingLoading, setPendingLoading] = useState(true);
   const [aulas, setAulas] = useState([]);
+  const [myGroups, setMyGroups] = useState([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
@@ -28,6 +29,7 @@ export default function StudentDashboard() {
     api.get('/attempts/my').then(res => setAttempts(res.data)).catch(() => {});
     api.get('/groups/my-pending').then(res => setPending(res.data)).catch(() => {}).finally(() => setPendingLoading(false));
     api.get('/aulas/my').then(res => setAulas(res.data)).catch(() => {});
+    api.get('/groups/my-groups').then(res => setMyGroups(res.data)).catch(() => {});
   }, []);
 
   async function handleEnterExam({ code }) {
@@ -189,6 +191,37 @@ export default function StudentDashboard() {
           </Card>
         )}
       </div>
+
+      {/* Minhas Turmas */}
+      {myGroups.length > 0 && (
+        <Card
+          title={<Space><TeamOutlined style={{ color: '#1677ff' }} /><Text strong>Minhas Turmas</Text></Space>}
+          style={{ marginBottom: 16 }}
+        >
+          <List
+            dataSource={myGroups}
+            rowKey="id"
+            renderItem={group => (
+              <List.Item
+                style={{ cursor: 'pointer', padding: '10px 0' }}
+                onClick={() => navigate(`/aluno/turma/${group.id}`)}
+                actions={[<RightOutlined key="go" style={{ color: '#1677ff' }} />]}
+              >
+                <List.Item.Meta
+                  avatar={<Avatar icon={<TeamOutlined />} style={{ background: '#1677ff' }} />}
+                  title={<Text strong>{group.name}</Text>}
+                  description={
+                    <Space>
+                      <Tag icon={<SlidersFilled />} color="green">{group.aulaCount} aula(s)</Tag>
+                      <Tag icon={<BookOutlined />}>{group.examCount} avaliação(ões)</Tag>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )}
 
       {/* Aulas da turma */}
       {aulas.length > 0 && (
