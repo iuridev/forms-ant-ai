@@ -53,17 +53,20 @@ class SheetsDB {
           requestBody: { values: [headers] },
         });
       } else {
-        // Verifica se já tem cabeçalho
+        // Verifica se o cabeçalho existe e bate com o schema atual
         const res = await this.sheets.spreadsheets.values.get({
           spreadsheetId: this.spreadsheetId,
           range: `${name}!1:1`,
         });
-        if (!res.data.values || res.data.values.length === 0) {
+        const existingHeaders = res.data.values?.[0] || [];
+        const expectedHeaders = SHEET_SCHEMAS[name];
+        // Atualiza se vazio ou se colunas divergem (schema evoluiu)
+        if (existingHeaders.length === 0 || existingHeaders.join(',') !== expectedHeaders.join(',')) {
           await this.sheets.spreadsheets.values.update({
             spreadsheetId: this.spreadsheetId,
             range: `${name}!A1`,
             valueInputOption: 'RAW',
-            requestBody: { values: [SHEET_SCHEMAS[name]] },
+            requestBody: { values: [expectedHeaders] },
           });
         }
       }

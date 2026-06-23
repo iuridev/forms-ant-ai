@@ -84,7 +84,7 @@ async function addMember(req, res) {
     return res.status(404).json({ error: 'Turma não encontrada' });
   }
 
-  const student = await db.findOne('Users', u => u.publicCode === publicCode.trim().toUpperCase() && u.role === 'STUDENT');
+  const student = await db.findOne('Users', u => u.publicCode?.trim() === publicCode.trim().toUpperCase() && u.role?.trim() === 'STUDENT');
   if (!student) return res.status(404).json({ error: 'Aluno não encontrado. Verifique o código.' });
 
   const existing = await db.findOne('GroupMembers', m => m.groupId === group.id && m.studentId === student.id);
