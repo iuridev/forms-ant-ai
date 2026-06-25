@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag, Typography, Space, Button, Progress, Statistic, Row, Col, Tooltip, Alert } from 'antd';
-import { ArrowLeftOutlined, WarningOutlined, CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import {
+  Card, Table, Tag, Typography, Space, Button, Progress, Statistic,
+  Row, Col, Tooltip, Alert, InputNumber, message,
+} from 'antd';
+import {
+  ArrowLeftOutlined, WarningOutlined, CheckCircleOutlined,
+  CloseCircleOutlined, ClockCircleOutlined, DownloadOutlined,
+  EditOutlined, SaveOutlined,
+} from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api';
 
@@ -29,6 +36,50 @@ function focusLostColor(seconds) {
   return 'default';
 }
 
+function EssayGrader({ answer, examId, onSaved }) {
+  const [pts, setPts] = useState(Number(answer.pointsEarned) || 0);
+  const [saving, setSaving] = useState(false);
+  const maxPts = Number(answer.question?.points) || 0;
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.put(`/exams/${examId}/answers/${answer.id}/grade-essay`, { pointsEarned: pts });
+      message.success('Nota salva!');
+      onSaved();
+    } catch {
+      message.error('Erro ao salvar nota');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+      <Tag color="orange" icon={<EditOutlined />}>Dissertativa — correção manual</Tag>
+      <InputNumber
+        min={0}
+        max={maxPts}
+        step={0.5}
+        value={pts}
+        onChange={v => setPts(v ?? 0)}
+        size="small"
+        style={{ width: 80 }}
+        addonAfter={`/ ${maxPts}`}
+      />
+      <Button
+        size="small"
+        type="primary"
+        icon={<SaveOutlined />}
+        loading={saving}
+        onClick={save}
+      >
+        Salvar
+      </Button>
+    </div>
+  );
+}
+
 export default function ExamResults() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -36,20 +87,52 @@ export default function ExamResults() {
   const [examTitle, setExamTitle] = useState('');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    Promise.all([
-      api.get(`/exams/${id}/results`),
-      api.get(`/exams/${id}`),
-    ]).then(([res, examRes]) => {
+  async function loadData() {
+    try {
+      const [res, examRes] = await Promise.all([
+        api.get(`/exams/${id}/results`),
+        api.get(`/exams/${id}`),
+      ]);
       setAttempts(res.data);
       setExamTitle(examRes.data.title);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [id]);
+    } catch {} finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, [id]);
 
   const submitted = attempts.filter(a => a.status === 'SUBMITTED');
-  const avg = submitted.length ? submitted.reduce((acc, a) => acc + (a.score / a.maxScore * 100), 0) / submitted.length : 0;
+  const avg = submitted.length
+    ? submitted.reduce((acc, a) => acc + (a.score / a.maxScore * 100), 0) / submitted.length
+    : 0;
   const passing = submitted.filter(a => (a.score / a.maxScore) >= 0.6).length;
   const suspicious = submitted.filter(a => (a.totalFocusLostSeconds || 0) >= 20 || (a.violations?.length || 0) > 5).length;
+
+  function exportCSV() {
+    const headers = ['Aluno', 'Email', 'Nota', 'Máximo', '%', 'Situação', 'Tempo fora (s)', 'Violações', 'Entregue em'];
+    const rows = submitted.map(a => [
+      a.student?.name || '',
+      a.student?.email || '',
+      (a.score ?? 0).toFixed(1),
+      (a.maxScore ?? 0).toFixed(1),
+      a.maxScore > 0 ? ((a.score / a.maxScore) * 100).toFixed(1) : '0',
+      a.score / a.maxScore >= 0.6 ? 'Aprovado' : 'Reprovado',
+      a.totalFocusLostSeconds || 0,
+      a.violations?.length || 0,
+      a.submittedAt ? new Date(a.submittedAt).toLocaleString('pt-BR') : '',
+    ]);
+
+    const csv = [headers, ...rows]
+      .map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `resultados-${examTitle}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const columns = [
     {
@@ -58,9 +141,17 @@ export default function ExamResults() {
     },
     {
       title: 'Nota', key: 'score',
-      render: (_, r) => r.status === 'SUBMITTED'
-        ? <Space><Text strong style={{ fontSize: 18 }}>{Number(r.score)?.toFixed(1)}</Text><Text type="secondary">/ {Number(r.maxScore)?.toFixed(1)}</Text></Space>
-        : <Tag color="processing">Em andamento</Tag>,
+      render: (_, r) => {
+        if (r.status !== 'SUBMITTED') return <Tag color="processing">Em andamento</Tag>;
+        const hasEssay = r.answers?.some(a => a.question?.type === 'ESSAY' && !a.pointsEarned);
+        return (
+          <Space>
+            <Text strong style={{ fontSize: 18 }}>{Number(r.score)?.toFixed(1)}</Text>
+            <Text type="secondary">/ {Number(r.maxScore)?.toFixed(1)}</Text>
+            {hasEssay && <Tag color="orange">Dissertativa pendente</Tag>}
+          </Space>
+        );
+      },
     },
     {
       title: '%', key: 'pct',
@@ -69,14 +160,13 @@ export default function ExamResults() {
         : null,
     },
     {
-      title: 'Tempo fora da prova',
+      title: 'Tempo fora',
       key: 'focusLost',
       render: (_, r) => {
         const s = r.totalFocusLostSeconds || 0;
-        const color = focusLostColor(s);
         return (
-          <Tooltip title={s >= 20 ? 'Alto tempo fora da prova — suspeito' : s >= 5 ? 'Algum tempo fora' : 'Normal'}>
-            <Tag color={color} icon={<ClockCircleOutlined />}>
+          <Tooltip title={s >= 20 ? 'Alto tempo fora — suspeito' : s >= 5 ? 'Algum tempo fora' : 'Normal'}>
+            <Tag color={focusLostColor(s)} icon={<ClockCircleOutlined />}>
               {formatSeconds(s)}
             </Tag>
           </Tooltip>
@@ -117,9 +207,14 @@ export default function ExamResults() {
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/professor/prova/${id}`)}>Voltar</Button>
-        <Title level={3} style={{ margin: 0 }}>Resultados — {examTitle}</Title>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(`/professor/prova/${id}`)}>Voltar</Button>
+          <Title level={3} style={{ margin: 0 }}>Resultados — {examTitle}</Title>
+        </Space>
+        <Button icon={<DownloadOutlined />} onClick={exportCSV} disabled={submitted.length === 0}>
+          Exportar CSV
+        </Button>
       </div>
 
       <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -132,7 +227,7 @@ export default function ExamResults() {
       {suspicious > 0 && (
         <Alert
           message={`${suspicious} aluno(s) com tempo excessivo fora da prova ou muitas violações.`}
-          description="Alunos com mais de 20 segundos fora da tela ou mais de 5 violações são sinalizados. Expanda a linha para ver o detalhamento."
+          description="Alunos com mais de 20 segundos fora da tela ou mais de 5 violações são sinalizados."
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -149,7 +244,6 @@ export default function ExamResults() {
           expandable={{
             expandedRowRender: (record) => (
               <div style={{ padding: '8px 0 8px 32px' }}>
-                {/* Resumo de tempo fora */}
                 {(record.totalFocusLostSeconds || 0) > 0 && (
                   <div style={{ marginBottom: 12 }}>
                     <Tag icon={<ClockCircleOutlined />} color={focusLostColor(record.totalFocusLostSeconds)}>
@@ -158,7 +252,6 @@ export default function ExamResults() {
                   </div>
                 )}
 
-                {/* Linha do tempo de violações */}
                 {record.violations?.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
                     <Text strong type="warning"><WarningOutlined /> Linha do tempo de violações:</Text>
@@ -176,23 +269,35 @@ export default function ExamResults() {
                   </div>
                 )}
 
-                {/* Respostas */}
                 <Text strong>Respostas:</Text>
                 <div style={{ marginTop: 8 }}>
-                  {record.answers?.map((a, i) => (
-                    <div key={i} style={{ marginBottom: 4, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                      {a.isCorrect
-                        ? <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 3 }} />
-                        : <CloseCircleOutlined style={{ color: '#ff4d4f', marginTop: 3 }} />}
-                      <div>
-                        <Text>{a.question?.text}</Text>
-                        <br />
-                        <Text type="secondary">Resposta: </Text>
-                        <Text strong>{a.selectedOption?.text || a.textAnswer || '(sem resposta)'}</Text>
-                        <Tag color={a.isCorrect ? 'success' : 'error'} style={{ marginLeft: 8 }}>{a.pointsEarned} pts</Tag>
+                  {record.answers?.map((a, i) => {
+                    const isEssay = a.question?.type === 'ESSAY';
+                    return (
+                      <div key={i} style={{ marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        {isEssay
+                          ? <EditOutlined style={{ color: '#fa8c16', marginTop: 3 }} />
+                          : a.isCorrect
+                            ? <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 3 }} />
+                            : <CloseCircleOutlined style={{ color: '#ff4d4f', marginTop: 3 }} />
+                        }
+                        <div style={{ flex: 1 }}>
+                          <Text>{a.question?.text}</Text>
+                          <br />
+                          <Text type="secondary">Resposta: </Text>
+                          <Text strong>{a.selectedOption?.text || a.textAnswer || '(sem resposta)'}</Text>
+                          {!isEssay && (
+                            <Tag color={a.isCorrect ? 'success' : 'error'} style={{ marginLeft: 8 }}>
+                              {a.pointsEarned} pts
+                            </Tag>
+                          )}
+                          {isEssay && (
+                            <EssayGrader answer={a} examId={id} onSaved={loadData} />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ),

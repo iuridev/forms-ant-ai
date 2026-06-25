@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
   Card, Button, Typography, Tag, Space, Form, Input, Select, InputNumber,
-  Switch, Divider, List, Popconfirm, message, Modal, Radio, Row, Col, Alert
+  Switch, Divider, List, Popconfirm, message, Modal, Radio, Row, Col, Alert,
+  DatePicker, Tooltip,
 } from 'antd';
 import {
   ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined,
-  PlayCircleOutlined, PauseCircleOutlined, StopOutlined, CopyOutlined, TeamOutlined
+  PlayCircleOutlined, StopOutlined, CopyOutlined, TeamOutlined,
+  BankOutlined, DownloadOutlined, CalendarOutlined, SaveOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
+import dayjs from 'dayjs';
 import api from '../../api';
 
 const { Title, Text, Paragraph } = Typography;
@@ -17,6 +20,14 @@ const QUESTION_LABELS = {
   MULTIPLE_CHOICE: 'Múltipla Escolha',
   TRUE_FALSE: 'Verdadeiro/Falso',
   FILL_BLANK: 'Preencher Lacuna',
+  ESSAY: 'Dissertativa',
+};
+
+const QUESTION_COLORS = {
+  MULTIPLE_CHOICE: 'blue',
+  TRUE_FALSE: 'purple',
+  FILL_BLANK: 'cyan',
+  ESSAY: 'orange',
 };
 
 const STATUS_CONFIG = {
@@ -36,10 +47,24 @@ export default function ExamDetail() {
   const [questionType, setQuestionType] = useState('MULTIPLE_CHOICE');
   const [groups, setGroups] = useState([]);
 
+  // Banco de questões
+  const [bankModalOpen, setBankModalOpen] = useState(false);
+  const [bankQuestions, setBankQuestions] = useState([]);
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankSearch, setBankSearch] = useState('');
+
+  // Agendamento
+  const [scheduleRange, setScheduleRange] = useState([null, null]);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
   async function fetchExam() {
     try {
       const res = await api.get(`/exams/${id}`);
       setExam(res.data);
+      setScheduleRange([
+        res.data.scheduledStart ? dayjs(res.data.scheduledStart) : null,
+        res.data.scheduledEnd ? dayjs(res.data.scheduledEnd) : null,
+      ]);
     } catch { message.error('Erro ao carregar prova'); }
     finally { setLoading(false); }
   }
@@ -85,6 +110,10 @@ export default function ExamDetail() {
       ];
       delete values.trueFalseAnswer;
     }
+    if (values.type === 'ESSAY') {
+      delete values.options;
+      delete values.correctBlank;
+    }
     try {
       if (editingQuestion) {
         await api.put(`/exams/${id}/questions/${editingQuestion.id}`, values);
@@ -106,6 +135,15 @@ export default function ExamDetail() {
       message.success('Questão excluída');
       fetchExam();
     } catch { message.error('Erro ao excluir'); }
+  }
+
+  async function saveToBank(q) {
+    try {
+      await api.post(`/question-bank/from-exam/${id}/questions/${q.id}`);
+      message.success('Questão salva no banco!');
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Erro ao salvar no banco');
+    }
   }
 
   async function changeStatus(newStatus) {
@@ -136,10 +174,47 @@ export default function ExamDetail() {
     message.success('Código copiado!');
   }
 
+  async function saveSchedule() {
+    setSavingSchedule(true);
+    try {
+      await api.put(`/exams/${id}`, {
+        scheduledStart: scheduleRange[0] ? scheduleRange[0].toISOString() : '',
+        scheduledEnd: scheduleRange[1] ? scheduleRange[1].toISOString() : '',
+      });
+      message.success('Agendamento salvo!');
+      fetchExam();
+    } catch { message.error('Erro ao salvar agendamento'); }
+    finally { setSavingSchedule(false); }
+  }
+
+  async function openBankModal() {
+    setBankModalOpen(true);
+    setBankLoading(true);
+    try {
+      const res = await api.get('/question-bank');
+      setBankQuestions(res.data);
+    } catch { message.error('Erro ao carregar banco'); }
+    finally { setBankLoading(false); }
+  }
+
+  async function importFromBank(bankQ) {
+    try {
+      await api.post(`/question-bank/import-to-exam/${id}`, { bankQuestionId: bankQ.id });
+      message.success('Questão importada!');
+      setBankModalOpen(false);
+      fetchExam();
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Erro ao importar');
+    }
+  }
+
   if (loading || !exam) return <Card loading />;
 
   const statusCfg = STATUS_CONFIG[exam.status];
   const totalPoints = exam.questions.reduce((acc, q) => acc + q.points, 0);
+  const filteredBank = bankQuestions.filter(q =>
+    !bankSearch || q.text.toLowerCase().includes(bankSearch.toLowerCase()) || (q.tags || '').toLowerCase().includes(bankSearch.toLowerCase())
+  );
 
   return (
     <>
@@ -166,7 +241,7 @@ export default function ExamDetail() {
       </div>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={16}>
+        <Col span={12}>
           <Card>
             <Space wrap>
               <Text><strong>Duração:</strong> {exam.durationMinutes} minutos</Text>
@@ -178,13 +253,46 @@ export default function ExamDetail() {
             {exam.description && <Paragraph style={{ marginTop: 8, color: '#666' }}>{exam.description}</Paragraph>}
           </Card>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Card>
             <Text type="secondary" style={{ fontSize: 12 }}>Código de acesso dos alunos</Text>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
               <Text style={{ fontSize: 28, fontWeight: 700, letterSpacing: 4, color: '#1677ff' }}>{exam.accessCode}</Text>
               <Button type="text" icon={<CopyOutlined />} onClick={copyCode} />
             </div>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <CalendarOutlined style={{ color: '#667eea' }} />
+              <Text strong style={{ fontSize: 13 }}>Agendamento</Text>
+            </div>
+            <DatePicker.RangePicker
+              showTime
+              format="DD/MM/YYYY HH:mm"
+              value={scheduleRange}
+              onChange={val => setScheduleRange(val || [null, null])}
+              placeholder={['Início', 'Fim']}
+              size="small"
+              style={{ width: '100%', marginBottom: 8 }}
+            />
+            <Button
+              size="small"
+              icon={<SaveOutlined />}
+              onClick={saveSchedule}
+              loading={savingSchedule}
+              block
+            >
+              Salvar datas
+            </Button>
+            {(exam.scheduledStart || exam.scheduledEnd) && (
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                {exam.scheduledStart && `Abre: ${new Date(exam.scheduledStart).toLocaleString('pt-BR')}`}
+                {exam.scheduledStart && exam.scheduledEnd && ' | '}
+                {exam.scheduledEnd && `Fecha: ${new Date(exam.scheduledEnd).toLocaleString('pt-BR')}`}
+              </Text>
+            )}
           </Card>
         </Col>
       </Row>
@@ -195,12 +303,22 @@ export default function ExamDetail() {
 
       <Card
         title={<Space><Text strong>Questões</Text><Tag>{exam.questions.length}</Tag></Space>}
-        extra={exam.status !== 'CLOSED' && <Button type="primary" icon={<PlusOutlined />} onClick={openAddQuestion}>Adicionar Questão</Button>}
+        extra={exam.status !== 'CLOSED' && (
+          <Space>
+            <Tooltip title="Importar do banco de questões">
+              <Button icon={<BankOutlined />} onClick={openBankModal}>Banco</Button>
+            </Tooltip>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openAddQuestion}>Adicionar Questão</Button>
+          </Space>
+        )}
       >
         {exam.questions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>
             <p>Nenhuma questão adicionada ainda.</p>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openAddQuestion}>Adicionar Primeira Questão</Button>
+            <Space>
+              <Button icon={<BankOutlined />} onClick={openBankModal}>Importar do Banco</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={openAddQuestion}>Adicionar Questão</Button>
+            </Space>
           </div>
         ) : (
           <List
@@ -208,10 +326,13 @@ export default function ExamDetail() {
             renderItem={(q, idx) => (
               <List.Item
                 actions={exam.status !== 'CLOSED' ? [
+                  <Tooltip title="Salvar no banco de questões">
+                    <Button size="small" icon={<BankOutlined />} onClick={() => saveToBank(q)} />
+                  </Tooltip>,
                   <Button size="small" icon={<EditOutlined />} onClick={() => openEditQuestion(q)}>Editar</Button>,
                   <Popconfirm title="Excluir questão?" onConfirm={() => deleteQuestion(q.id)} okText="Sim" cancelText="Não">
                     <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  </Popconfirm>,
                 ] : []}
                 style={{ alignItems: 'flex-start' }}
               >
@@ -220,19 +341,21 @@ export default function ExamDetail() {
                   title={
                     <Space>
                       <Text strong>{q.text}</Text>
-                      <Tag color="blue">{QUESTION_LABELS[q.type]}</Tag>
+                      <Tag color={QUESTION_COLORS[q.type]}>{QUESTION_LABELS[q.type]}</Tag>
                       <Tag>{q.points} pt{q.points !== 1 ? 's' : ''}</Tag>
                     </Space>
                   }
                   description={
-                    q.type !== 'FILL_BLANK' ? (
+                    q.type === 'MULTIPLE_CHOICE' || q.type === 'TRUE_FALSE' ? (
                       <Space wrap style={{ marginTop: 4 }}>
                         {q.options.map(o => (
                           <Tag key={o.id} color={o.isCorrect ? 'success' : 'default'}>{o.text}</Tag>
                         ))}
                       </Space>
-                    ) : (
+                    ) : q.type === 'FILL_BLANK' ? (
                       <Text type="secondary">Resposta: <Text code>{q.correctBlank}</Text></Text>
+                    ) : (
+                      <Text type="secondary" style={{ fontStyle: 'italic' }}>Resposta aberta — correção manual pelo professor</Text>
                     )
                   }
                 />
@@ -254,7 +377,7 @@ export default function ExamDetail() {
                 key={g.id}
                 size="small"
                 style={{ minWidth: 200 }}
-                bodyStyle={{ padding: '12px 16px' }}
+                styles={{ body: { padding: '12px 16px' } }}
               >
                 <Space style={{ justifyContent: 'space-between', width: '100%' }}>
                   <Space direction="vertical" size={0}>
@@ -264,7 +387,7 @@ export default function ExamDetail() {
                   <Switch
                     checked={g.linked}
                     checkedChildren="Vinculada"
-                    unCheckedChildren="Desvincular"
+                    unCheckedChildren="Vincular"
                     onChange={checked => toggleGroupLink(g, checked)}
                   />
                 </Space>
@@ -274,6 +397,7 @@ export default function ExamDetail() {
         </Card>
       )}
 
+      {/* Modal de nova/editar questão */}
       <Modal
         title={editingQuestion ? 'Editar Questão' : 'Nova Questão'}
         open={modalOpen}
@@ -294,6 +418,7 @@ export default function ExamDetail() {
               <Select.Option value="MULTIPLE_CHOICE">Múltipla Escolha</Select.Option>
               <Select.Option value="TRUE_FALSE">Verdadeiro ou Falso</Select.Option>
               <Select.Option value="FILL_BLANK">Preencher Lacuna</Select.Option>
+              <Select.Option value="ESSAY">Dissertativa (correção manual)</Select.Option>
             </Select>
           </Form.Item>
 
@@ -305,7 +430,7 @@ export default function ExamDetail() {
             <InputNumber min={0.5} max={100} step={0.5} style={{ width: 150 }} />
           </Form.Item>
 
-          {(questionType === 'MULTIPLE_CHOICE') && (
+          {questionType === 'MULTIPLE_CHOICE' && (
             <Form.Item label="Alternativas" required>
               <Form.List name="options" initialValue={[{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }]}>
                 {(fields, { add, remove }) => (
@@ -353,12 +478,66 @@ export default function ExamDetail() {
             </Form.Item>
           )}
 
+          {questionType === 'ESSAY' && (
+            <Alert
+              type="info"
+              showIcon
+              message="Questão dissertativa"
+              description="O aluno digitará uma resposta livre. Você deverá corrigi-la manualmente na tela de resultados e atribuir a pontuação."
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Divider />
           <Space>
             <Button type="primary" htmlType="submit">Salvar Questão</Button>
             <Button onClick={() => setModalOpen(false)}>Cancelar</Button>
           </Space>
         </Form>
+      </Modal>
+
+      {/* Modal do banco de questões */}
+      <Modal
+        title={<Space><BankOutlined /><span>Banco de Questões</span></Space>}
+        open={bankModalOpen}
+        onCancel={() => { setBankModalOpen(false); setBankSearch(''); }}
+        footer={<Button onClick={() => navigate('/professor/banco-questoes')} icon={<DownloadOutlined />}>Gerenciar banco completo</Button>}
+        width={700}
+      >
+        <Input.Search
+          placeholder="Buscar por texto ou tags..."
+          value={bankSearch}
+          onChange={e => setBankSearch(e.target.value)}
+          style={{ marginBottom: 16 }}
+        />
+        {bankQuestions.length === 0 && !bankLoading && (
+          <div style={{ textAlign: 'center', padding: 32, color: '#999' }}>
+            <BankOutlined style={{ fontSize: 32, marginBottom: 8, display: 'block' }} />
+            <Text type="secondary">Nenhuma questão no banco ainda.<br />Crie questões e salve no banco clicando em <BankOutlined /> em cada questão.</Text>
+          </div>
+        )}
+        <List
+          loading={bankLoading}
+          dataSource={filteredBank}
+          renderItem={q => (
+            <List.Item
+              actions={[
+                <Button type="primary" size="small" onClick={() => importFromBank(q)}>Importar</Button>
+              ]}
+            >
+              <List.Item.Meta
+                title={
+                  <Space>
+                    <Text>{q.text}</Text>
+                    <Tag color={QUESTION_COLORS[q.type]}>{QUESTION_LABELS[q.type]}</Tag>
+                    <Tag>{q.points} pt{q.points !== 1 ? 's' : ''}</Tag>
+                  </Space>
+                }
+                description={q.tags ? <Text type="secondary" style={{ fontSize: 12 }}>Tags: {q.tags}</Text> : null}
+              />
+            </List.Item>
+          )}
+        />
       </Modal>
     </>
   );

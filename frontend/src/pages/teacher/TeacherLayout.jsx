@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Avatar, Dropdown, Typography, Space } from 'antd';
-import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, LineChartOutlined, TeamOutlined } from '@ant-design/icons';
+import { BookOutlined, PlusOutlined, LogoutOutlined, UserOutlined, LineChartOutlined, TeamOutlined, BankOutlined } from '@ant-design/icons';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Header, Sider, Content } = Layout;
@@ -15,6 +15,8 @@ export default function TeacherLayout() {
     ? '/professor/alunos'
     : location.pathname.startsWith('/professor/turmas')
     ? '/professor/turmas'
+    : location.pathname.startsWith('/professor/banco-questoes')
+    ? '/professor/banco-questoes'
     : location.pathname;
 
   const menuItems = [
@@ -22,6 +24,7 @@ export default function TeacherLayout() {
     { key: '/professor/nova-prova', icon: <PlusOutlined />, label: 'Nova Avaliação' },
     { key: '/professor/turmas', icon: <TeamOutlined />, label: 'Turmas' },
     { key: '/professor/alunos', icon: <LineChartOutlined />, label: 'Desenvolvimento' },
+    { key: '/professor/banco-questoes', icon: <BankOutlined />, label: 'Banco de Questões' },
   ];
 
   const userMenu = {

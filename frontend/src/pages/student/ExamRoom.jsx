@@ -14,12 +14,14 @@ const TYPE_LABELS = {
   MULTIPLE_CHOICE: 'Múltipla Escolha',
   TRUE_FALSE: 'Verdadeiro ou Falso',
   FILL_BLANK: 'Preencher Lacuna',
+  ESSAY: 'Dissertativa',
 };
 
 const TYPE_COLORS = {
   MULTIPLE_CHOICE: '#1677ff',
   TRUE_FALSE: '#722ed1',
   FILL_BLANK: '#13c2c2',
+  ESSAY: '#fa8c16',
 };
 
 const FONT_SIZES = [14, 16, 18, 20, 22];
@@ -683,6 +685,35 @@ export default function ExamRoom() {
                 </div>
                 <Text style={{ fontSize: 12, color: '#aaa', marginTop: 8, display: 'block' }}>
                   Resposta salva automaticamente enquanto você digita.
+                </Text>
+              </div>
+            )}
+
+            {/* Dissertativa */}
+            {question.type === 'ESSAY' && (
+              <div>
+                <div style={{ background: '#fff', borderRadius: 12, padding: '4px', border: '2px solid #e8ecf0', transition: 'border-color 0.2s' }}
+                  onFocusCapture={e => e.currentTarget.style.borderColor = '#fa8c16'}
+                  onBlurCapture={e => e.currentTarget.style.borderColor = '#e8ecf0'}
+                >
+                  <Input.TextArea
+                    placeholder="Escreva sua resposta aqui. Desenvolva com clareza e detalhes..."
+                    value={answers[question.id] || ''}
+                    onChange={e => saveAnswer(question.id, e.target.value, 'ESSAY')}
+                    autoSize={{ minRows: 5, maxRows: 12 }}
+                    style={{
+                      border: 'none',
+                      boxShadow: 'none',
+                      fontSize: fontSize,
+                      lineHeight: 1.8,
+                      padding: '14px 16px',
+                      borderRadius: 10,
+                      resize: 'none',
+                    }}
+                  />
+                </div>
+                <Text style={{ fontSize: 12, color: '#aaa', marginTop: 8, display: 'block' }}>
+                  Resposta dissertativa — será corrigida manualmente pelo professor. Salva automaticamente.
                 </Text>
               </div>
             )}

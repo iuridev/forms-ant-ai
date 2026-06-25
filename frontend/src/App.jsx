@@ -14,6 +14,7 @@ import ExamResults from './pages/teacher/ExamResults';
 import StudentProgress from './pages/teacher/StudentProgress';
 import StudentDetail from './pages/teacher/StudentDetail';
 import GroupsPage from './pages/teacher/GroupsPage';
+import QuestionBankPage from './pages/teacher/QuestionBankPage';
 import StudentLayout from './pages/student/StudentLayout';
 import StudentDashboard from './pages/student/StudentDashboard';
 import ExamRoom from './pages/student/ExamRoom';
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="turmas" element={<GroupsPage />} />
         <Route path="alunos" element={<StudentProgress />} />
         <Route path="alunos/:studentId" element={<StudentDetail />} />
+        <Route path="banco-questoes" element={<QuestionBankPage />} />
       </Route>
 
       <Route path="/aluno" element={<PrivateRoute role="STUDENT"><StudentLayout /></PrivateRoute>}>

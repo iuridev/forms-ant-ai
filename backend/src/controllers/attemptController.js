@@ -1,5 +1,18 @@
 const db = require('../services/sheetsDb');
 
+// Shuffle determinístico baseado no attemptId para que o aluno sempre veja a mesma ordem ao retomar
+function seededShuffle(arr, seed) {
+  const s = [...arr];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = Math.imul(31, h) + seed.charCodeAt(i) | 0;
+  const rand = () => { h ^= h << 13; h ^= h >> 17; h ^= h << 5; return (h >>> 0) / 4294967296; };
+  for (let i = s.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [s[i], s[j]] = [s[j], s[i]];
+  }
+  return s;
+}
+
 async function startExam(req, res) {
   const { accessCode, examId: examIdDirect } = req.body;
 
@@ -21,6 +34,15 @@ async function startExam(req, res) {
 
   if (exam.status !== 'ACTIVE') return res.status(403).json({ error: 'Esta avaliação não está disponível no momento' });
 
+  // Validação de agendamento
+  const now = new Date();
+  if (exam.scheduledStart && new Date(exam.scheduledStart) > now) {
+    return res.status(403).json({ error: `Esta avaliação só abre em ${new Date(exam.scheduledStart).toLocaleString('pt-BR')}` });
+  }
+  if (exam.scheduledEnd && new Date(exam.scheduledEnd) < now) {
+    return res.status(403).json({ error: 'O prazo para realizar esta avaliação já encerrou.' });
+  }
+
   const maxAttempts = Number(exam.maxAttempts) || 1;
   const examType = exam.type || 'PROVA';
 
@@ -29,7 +51,7 @@ async function startExam(req, res) {
     a.studentId === req.user.id && a.examId === exam.id && a.status === 'IN_PROGRESS'
   );
   if (inProgress) {
-    return res.json({ attempt: inProgress, exam: await buildSanitizedExam(exam), attemptsUsed: null, maxAttempts, examType });
+    return res.json({ attempt: inProgress, exam: await buildSanitizedExam(exam, inProgress.id), attemptsUsed: null, maxAttempts, examType });
   }
 
   // Conta tentativas concluídas
@@ -49,24 +71,34 @@ async function startExam(req, res) {
     score: '', maxScore: '', status: 'IN_PROGRESS', totalFocusLostSeconds: '0',
   });
 
-  return res.status(201).json({ attempt, exam: await buildSanitizedExam(exam), attemptsUsed: submitted.length + 1, maxAttempts, examType });
+  return res.status(201).json({ attempt, exam: await buildSanitizedExam(exam, attempt.id), attemptsUsed: submitted.length + 1, maxAttempts, examType });
 }
 
-async function buildSanitizedExam(exam) {
-  const questions = await db.findWhere('Questions', q => q.examId === exam.id);
+async function buildSanitizedExam(exam, attemptId = null) {
+  let questions = await db.findWhere('Questions', q => q.examId === exam.id);
   questions.sort((a, b) => Number(a.order) - Number(b.order));
   const allOptions = await db.readAll('Options');
+
+  if (attemptId) {
+    questions = seededShuffle(questions, attemptId + '_q');
+  }
 
   return {
     ...exam,
     durationMinutes: Number(exam.durationMinutes),
-    questions: questions.map(q => ({
-      ...q,
-      points: Number(q.points),
-      order: Number(q.order),
-      correctBlank: undefined,
-      options: allOptions.filter(o => o.questionId === q.id).map(o => ({ id: o.id, text: o.text })),
-    })),
+    questions: questions.map(q => {
+      let options = allOptions.filter(o => o.questionId === q.id).map(o => ({ id: o.id, text: o.text }));
+      if (attemptId && q.type === 'MULTIPLE_CHOICE') {
+        options = seededShuffle(options, attemptId + '_o_' + q.id);
+      }
+      return {
+        ...q,
+        points: Number(q.points),
+        order: Number(q.order),
+        correctBlank: undefined,
+        options,
+      };
+    }),
   };
 }
 
@@ -123,6 +155,9 @@ async function submitExam(req, res) {
       const studentAns = (answer.textAnswer || '').trim().toLowerCase();
       const correct = (question.correctBlank || '').trim().toLowerCase();
       isCorrect = studentAns === correct;
+    } else if (question.type === 'ESSAY') {
+      // Dissertativa: aguarda correção manual — não pontua automaticamente
+      continue;
     }
 
     const pointsEarned = isCorrect ? pts : 0;

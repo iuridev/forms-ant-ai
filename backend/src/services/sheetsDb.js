@@ -2,17 +2,19 @@ const { google } = require('googleapis');
 const { randomUUID: uuidv4 } = require('crypto');
 
 const SHEET_SCHEMAS = {
-  Users:         ['id', 'name', 'email', 'password', 'role', 'publicCode', 'createdAt'],
-  Exams:         ['id', 'title', 'description', 'durationMinutes', 'status', 'accessCode', 'teacherId', 'type', 'maxAttempts', 'createdAt', 'updatedAt'],
-  Groups:        ['id', 'name', 'teacherId', 'createdAt'],
-  GroupMembers:  ['id', 'groupId', 'studentId', 'addedAt'],
-  ExamGroups:    ['id', 'examId', 'groupId'],
-  Questions:     ['id', 'examId', 'text', 'type', 'points', 'order', 'correctBlank'],
-  Options:       ['id', 'questionId', 'text', 'isCorrect'],
-  ExamAttempts:  ['id', 'examId', 'studentId', 'startedAt', 'submittedAt', 'score', 'maxScore', 'status', 'totalFocusLostSeconds'],
-  Answers:       ['id', 'attemptId', 'questionId', 'selectedOptionId', 'textAnswer', 'isCorrect', 'pointsEarned'],
-  ViolationLogs: ['id', 'attemptId', 'type', 'details', 'timestamp', 'durationSeconds'],
-  Aulas: ['id', 'title', 'description', 'slideUrl', 'groupId', 'teacherId', 'order', 'createdAt'],
+  Users:              ['id', 'name', 'email', 'password', 'role', 'publicCode', 'createdAt'],
+  Exams:              ['id', 'title', 'description', 'durationMinutes', 'status', 'accessCode', 'teacherId', 'type', 'maxAttempts', 'scheduledStart', 'scheduledEnd', 'createdAt', 'updatedAt'],
+  Groups:             ['id', 'name', 'teacherId', 'createdAt'],
+  GroupMembers:       ['id', 'groupId', 'studentId', 'addedAt'],
+  ExamGroups:         ['id', 'examId', 'groupId'],
+  Questions:          ['id', 'examId', 'text', 'type', 'points', 'order', 'correctBlank'],
+  Options:            ['id', 'questionId', 'text', 'isCorrect'],
+  ExamAttempts:       ['id', 'examId', 'studentId', 'startedAt', 'submittedAt', 'score', 'maxScore', 'status', 'totalFocusLostSeconds'],
+  Answers:            ['id', 'attemptId', 'questionId', 'selectedOptionId', 'textAnswer', 'isCorrect', 'pointsEarned', 'feedback'],
+  ViolationLogs:      ['id', 'attemptId', 'type', 'details', 'timestamp', 'durationSeconds'],
+  Aulas:              ['id', 'title', 'description', 'slideUrl', 'groupId', 'teacherId', 'order', 'createdAt'],
+  QuestionBank:       ['id', 'teacherId', 'text', 'type', 'points', 'correctBlank', 'tags', 'createdAt'],
+  QuestionBankOptions:['id', 'questionBankId', 'text', 'isCorrect'],
 };
 
 class SheetsDB {

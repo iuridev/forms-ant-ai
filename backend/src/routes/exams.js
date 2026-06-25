@@ -3,7 +3,7 @@ const { authenticate, requireTeacher } = require('../middleware/auth');
 const {
   createExam, listExams, getExam, updateExam, deleteExam,
   addQuestion, updateQuestion, deleteQuestion, getResults,
-  listStudents, getStudentProgress,
+  listStudents, getStudentProgress, gradeEssay,
 } = require('../controllers/examController');
 
 const router = express.Router();
@@ -24,5 +24,6 @@ router.put('/:id/questions/:questionId', updateQuestion);
 router.delete('/:id/questions/:questionId', deleteQuestion);
 
 router.get('/:id/results', getResults);
+router.put('/:id/answers/:answerId/grade-essay', gradeEssay);
 
 module.exports = router;

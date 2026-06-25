@@ -26,6 +26,7 @@ async function createExam(req, res) {
     title, description: description || '', durationMinutes: durationMinutes || 60,
     status: 'DRAFT', accessCode, teacherId: req.user.id,
     type: examType, maxAttempts: String(maxAttempts),
+    scheduledStart: '', scheduledEnd: '',
     createdAt: now, updatedAt: now,
   });
   return res.status(201).json(exam);
@@ -66,7 +67,7 @@ async function getExam(req, res) {
 }
 
 async function updateExam(req, res) {
-  const { title, description, durationMinutes, status, type } = req.body;
+  const { title, description, durationMinutes, status, type, scheduledStart, scheduledEnd } = req.body;
   const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
   if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
 
@@ -79,6 +80,8 @@ async function updateExam(req, res) {
     ...(description !== undefined && { description }),
     ...(durationMinutes !== undefined && { durationMinutes }),
     ...(status !== undefined && { status }),
+    ...(scheduledStart !== undefined && { scheduledStart: scheduledStart || '' }),
+    ...(scheduledEnd !== undefined && { scheduledEnd: scheduledEnd || '' }),
     type: newType,
     maxAttempts: newMaxAttempts,
     updatedAt: new Date().toISOString(),
@@ -111,6 +114,8 @@ async function deleteExam(req, res) {
 async function addQuestion(req, res) {
   const { text, type, points, options, correctBlank } = req.body;
   if (!text || !type) return res.status(400).json({ error: 'Texto e tipo são obrigatórios' });
+  const validTypes = ['MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_BLANK', 'ESSAY'];
+  if (!validTypes.includes(type)) return res.status(400).json({ error: 'Tipo inválido' });
 
   const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
   if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
@@ -132,6 +137,47 @@ async function addQuestion(req, res) {
   }
 
   return res.status(201).json({ ...question, points: Number(question.points), options: createdOptions });
+}
+
+async function gradeEssay(req, res) {
+  const { answerId } = req.params;
+  const { pointsEarned, feedback } = req.body;
+
+  const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
+  if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
+
+  const answer = await db.findById('Answers', answerId);
+  if (!answer) return res.status(404).json({ error: 'Resposta não encontrada' });
+
+  const question = await db.findById('Questions', answer.questionId);
+  if (!question || question.examId !== exam.id || question.type !== 'ESSAY') {
+    return res.status(403).json({ error: 'Esta resposta não é dissertativa' });
+  }
+
+  const pts = Math.min(Math.max(Number(pointsEarned) || 0, 0), Number(question.points));
+  await db.update('Answers', answerId, {
+    ...answer,
+    pointsEarned: String(pts),
+    isCorrect: String(pts > 0),
+    feedback: feedback || '',
+  });
+
+  // Recalcula nota da tentativa
+  const attempt = await db.findById('ExamAttempts', answer.attemptId);
+  const allAnswers = await db.findWhere('Answers', a => a.attemptId === answer.attemptId);
+  const questions = await db.findWhere('Questions', q => q.examId === exam.id);
+
+  let totalScore = 0;
+  let maxScore = 0;
+  for (const q of questions) {
+    maxScore += Number(q.points);
+    const a = allAnswers.find(ans => ans.questionId === q.id);
+    if (a) totalScore += Number(a.pointsEarned) || 0;
+  }
+
+  await db.update('ExamAttempts', attempt.id, { ...attempt, score: String(totalScore), maxScore: String(maxScore) });
+
+  return res.json({ pointsEarned: pts, totalScore, maxScore });
 }
 
 async function updateQuestion(req, res) {
@@ -320,4 +366,4 @@ async function getStudentProgress(req, res) {
   });
 }
 
-module.exports = { createExam, listExams, getExam, updateExam, deleteExam, addQuestion, updateQuestion, deleteQuestion, getResults, listStudents, getStudentProgress };
+module.exports = { createExam, listExams, getExam, updateExam, deleteExam, addQuestion, updateQuestion, deleteQuestion, getResults, listStudents, getStudentProgress, gradeEssay };
