@@ -98,7 +98,8 @@ export default function StudentDetail() {
           <Card>
             <Statistic
               title="Média Geral"
-              value={stats.avgScore !== null ? `${stats.avgScore}%` : '—'}
+              value={stats.avgScore !== null ? (stats.avgScore / 10).toFixed(1) : '—'}
+              suffix={stats.avgScore !== null ? '/ 10' : ''}
               valueStyle={{ color: stats.avgScore >= 60 ? '#52c41a' : stats.avgScore < 60 ? '#ff4d4f' : undefined }}
             />
           </Card>
@@ -107,7 +108,8 @@ export default function StudentDetail() {
           <Card>
             <Statistic
               title="Melhor Nota"
-              value={stats.bestScore !== null ? `${stats.bestScore}%` : '—'}
+              value={stats.bestScore !== null ? (stats.bestScore / 10).toFixed(1) : '—'}
+              suffix={stats.bestScore !== null ? '/ 10' : ''}
               valueStyle={{ color: '#52c41a' }}
               prefix={<TrophyOutlined />}
             />
