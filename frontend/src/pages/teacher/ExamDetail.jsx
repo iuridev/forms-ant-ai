@@ -69,11 +69,22 @@ export default function ExamDetail() {
       points: q.points,
       correctBlank: q.correctBlank,
       options: q.options?.length ? q.options : [{ text: '', isCorrect: false }, { text: '', isCorrect: false }],
+      trueFalseAnswer: q.type === 'TRUE_FALSE'
+        ? (q.options?.find(o => o.isCorrect)?.text ?? 'Verdadeiro')
+        : undefined,
     });
     setModalOpen(true);
   }
 
   async function handleSaveQuestion(values) {
+    if (values.type === 'TRUE_FALSE') {
+      const correct = values.trueFalseAnswer ?? 'Verdadeiro';
+      values.options = [
+        { text: 'Verdadeiro', isCorrect: correct === 'Verdadeiro' },
+        { text: 'Falso', isCorrect: correct === 'Falso' },
+      ];
+      delete values.trueFalseAnswer;
+    }
     try {
       if (editingQuestion) {
         await api.put(`/exams/${id}/questions/${editingQuestion.id}`, values);
@@ -275,7 +286,7 @@ export default function ExamDetail() {
             <Select onChange={type => {
               setQuestionType(type);
               if (type === 'TRUE_FALSE') {
-                form.setFieldValue('options', [{ text: 'Verdadeiro', isCorrect: true }, { text: 'Falso', isCorrect: false }]);
+                form.setFieldValue('trueFalseAnswer', 'Verdadeiro');
               } else if (type === 'MULTIPLE_CHOICE') {
                 form.setFieldValue('options', [{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }]);
               }
@@ -319,21 +330,20 @@ export default function ExamDetail() {
           )}
 
           {questionType === 'TRUE_FALSE' && (
-            <Form.Item label="Resposta Correta" required>
-              <Form.List name="options" initialValue={[{ text: 'Verdadeiro', isCorrect: true }, { text: 'Falso', isCorrect: false }]}>
-                {(fields) => (
-                  <Space>
-                    {fields.map((field, idx) => (
-                      <Space key={field.key} align="baseline">
-                        <Form.Item {...field} name={[field.name, 'text']} hidden><Input /></Form.Item>
-                        <Form.Item {...field} name={[field.name, 'isCorrect']} valuePropName="checked" label={idx === 0 ? 'Verdadeiro' : 'Falso'}>
-                          <Switch />
-                        </Form.Item>
-                      </Space>
-                    ))}
-                  </Space>
-                )}
-              </Form.List>
+            <Form.Item
+              name="trueFalseAnswer"
+              label="Resposta Correta"
+              initialValue="Verdadeiro"
+              rules={[{ required: true, message: 'Selecione a resposta correta' }]}
+            >
+              <Radio.Group>
+                <Radio.Button value="Verdadeiro" style={{ width: 140, textAlign: 'center', fontWeight: 600 }}>
+                  ✓ Verdadeiro
+                </Radio.Button>
+                <Radio.Button value="Falso" style={{ width: 140, textAlign: 'center', fontWeight: 600 }}>
+                  ✗ Falso
+                </Radio.Button>
+              </Radio.Group>
             </Form.Item>
           )}
 
