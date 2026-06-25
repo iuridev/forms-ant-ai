@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Card, Typography, Space, Button, Tag, Row, Col, Statistic, Table, Progress, Empty, Tooltip, Alert } from 'antd';
+import { Card, Typography, Space, Button, Tag, Row, Col, Statistic, Table, Progress, Empty, Tooltip, Alert, Tabs } from 'antd';
 import {
   ArrowLeftOutlined, UserOutlined, TrophyOutlined, WarningOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, BookOutlined, FileTextOutlined,
+  CheckCircleOutlined, CloseCircleOutlined, BookOutlined, FileTextOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -37,12 +37,16 @@ export default function StudentDetail() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [simData, setSimData] = useState(null);
 
   useEffect(() => {
     api.get(`/exams/students/${studentId}`)
       .then(res => setData(res.data))
       .catch(() => navigate('/professor/alunos'))
       .finally(() => setLoading(false));
+    api.get(`/simulados/student/${studentId}`)
+      .then(res => setSimData(res.data))
+      .catch(() => {});
   }, [studentId]);
 
   if (loading || !data) return null;
@@ -241,6 +245,58 @@ export default function StudentDetail() {
           </Card>
         </Col>
       </Row>
+
+      {/* Simulados */}
+      {simData && (simData.simulados.length > 0 || simData.disciplineStats.length > 0) && (
+        <Card
+          title={<Space><ThunderboltOutlined style={{ color: '#1677ff' }} /> Desempenho em Simulados</Space>}
+          style={{ marginBottom: 16 }}
+        >
+          {simData.disciplineStats.length > 0 && (
+            <Row gutter={16} style={{ marginBottom: 16 }}>
+              {simData.disciplineStats.map(ds => (
+                <Col key={ds.discipline} xs={24} sm={12} md={8} lg={6} style={{ marginBottom: 12 }}>
+                  <div style={{ background: '#f8faff', borderRadius: 10, padding: '14px 16px', border: '1px solid #e8eef8' }}>
+                    <Text strong style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>{ds.discipline}</Text>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <Tag>{ds.count} simulado{ds.count > 1 ? 's' : ''}</Tag>
+                      <Tag color={ds.avgPercentage >= 70 ? 'success' : ds.avgPercentage >= 50 ? 'warning' : 'error'}>
+                        Média: {ds.avgPercentage}%
+                      </Tag>
+                    </div>
+                    <Progress
+                      percent={ds.avgPercentage}
+                      size="small"
+                      status={ds.avgPercentage >= 70 ? 'success' : ds.avgPercentage >= 50 ? 'normal' : 'exception'}
+                      showInfo={false}
+                    />
+                    <Text type="secondary" style={{ fontSize: 11 }}>Melhor: {ds.bestPercentage}%</Text>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+          )}
+          <Table
+            dataSource={simData.simulados}
+            rowKey="id"
+            size="small"
+            pagination={{ pageSize: 5 }}
+            columns={[
+              { title: 'Disciplina', dataIndex: 'discipline', key: 'discipline' },
+              { title: 'Data', dataIndex: 'submittedAt', key: 'date', render: v => new Date(v).toLocaleDateString('pt-BR') },
+              { title: 'Questões', dataIndex: 'totalQuestions', key: 'q' },
+              {
+                title: 'Resultado', key: 'score',
+                render: (_, r) => <Text strong>{r.score}/{r.maxScore} pts</Text>,
+              },
+              {
+                title: 'Aproveitamento', key: 'pct',
+                render: (_, r) => <Tag color={r.percentage >= 70 ? 'success' : r.percentage >= 50 ? 'warning' : 'error'}>{r.percentage}%</Tag>,
+              },
+            ]}
+          />
+        </Card>
+      )}
 
       {/* Histórico completo */}
       <Card title="Histórico Completo de Tentativas">

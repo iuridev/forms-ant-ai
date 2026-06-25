@@ -4,7 +4,7 @@ import {
   LoginOutlined, CheckCircleOutlined, CloseCircleOutlined,
   BookOutlined, FileTextOutlined, CopyOutlined, TeamOutlined,
   PlayCircleOutlined, RightOutlined, ClockCircleOutlined,
-  TrophyOutlined, FireOutlined, KeyOutlined, BellFilled,
+  TrophyOutlined, FireOutlined, KeyOutlined, BellFilled, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -44,6 +44,7 @@ export default function StudentDashboard() {
   const [pendingLoading, setPendingLoading] = useState(true);
   const [aulas, setAulas] = useState([]);
   const [myGroups, setMyGroups] = useState([]);
+  const [simulados, setSimulados] = useState([]);
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
@@ -52,6 +53,7 @@ export default function StudentDashboard() {
     api.get('/groups/my-pending').then(res => setPending(res.data)).catch(() => {}).finally(() => setPendingLoading(false));
     api.get('/aulas/my').then(res => setAulas(res.data)).catch(() => {});
     api.get('/groups/my-groups').then(res => setMyGroups(res.data)).catch(() => {});
+    api.get('/simulados/my').then(res => setSimulados(res.data)).catch(() => {});
   }, []);
 
   async function handleEnterExam({ code }) {
@@ -365,6 +367,33 @@ export default function StudentDashboard() {
             </div>
           )}
 
+          {/* Simulados */}
+          <div
+            onClick={() => navigate('/aluno/simulado')}
+            style={{
+              background: 'linear-gradient(135deg, #0d2137, #1a3a6b)',
+              borderRadius: 16, padding: '20px 24px',
+              cursor: 'pointer', position: 'relative', overflow: 'hidden',
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+          >
+            <div style={{ position: 'absolute', right: -20, top: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(79,156,249,0.12)', pointerEvents: 'none' }} />
+            <ThunderboltOutlined style={{ fontSize: 24, color: '#4f9cf9', marginBottom: 8, display: 'block' }} />
+            <Text strong style={{ color: '#fff', fontSize: 15, display: 'block' }}>Simulados</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, display: 'block', marginTop: 2 }}>
+              {simulados.length > 0
+                ? `${simulados.length} simulado${simulados.length > 1 ? 's' : ''} realizado${simulados.length > 1 ? 's' : ''}`
+                : 'Pratique com questões do banco'}
+            </Text>
+            <div style={{ marginTop: 12 }}>
+              <span style={{ fontSize: 11, background: 'rgba(79,156,249,0.25)', color: '#4f9cf9', borderRadius: 6, padding: '3px 10px', fontWeight: 600 }}>
+                Praticar agora →
+              </span>
+            </div>
+          </div>
+
           {/* Aulas recentes */}
           {aulas.length > 0 && (
             <div style={{ background: '#fff', borderRadius: 16, padding: '20px 24px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)' }}>
@@ -436,6 +465,17 @@ export default function StudentDashboard() {
                     </div>
                   ),
               },
+              {
+                key: 'simulados',
+                label: <span><ThunderboltOutlined /> Simulados ({simulados.length})</span>,
+                children: simulados.length === 0
+                  ? <Empty description="Nenhum simulado realizado ainda" style={{ padding: 32 }} />
+                  : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {simulados.map(s => <SimuladoRow key={s.id} simulado={s} />)}
+                    </div>
+                  ),
+              },
             ]}
           />
         </div>
@@ -448,6 +488,43 @@ export default function StudentDashboard() {
           <Text type="secondary">Suas avaliações aparecerão aqui após você entrar em uma turma ou usar um código de acesso.</Text>
         </div>
       )}
+    </div>
+  );
+}
+
+function SimuladoRow({ simulado }) {
+  const approved = (simulado.percentage || 0) >= 70;
+  const nota = simulado.percentage !== null ? ((simulado.percentage || 0) / 10).toFixed(1) : '—';
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 16,
+      padding: '14px 18px', borderRadius: 12,
+      background: '#fafbff', border: '1px solid #eef0f5',
+    }}>
+      <div style={{
+        width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+        background: approved ? '#f0fdf4' : '#fff1f0',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <ThunderboltOutlined style={{ fontSize: 22, color: approved ? '#52c41a' : '#ff4d4f' }} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <Text strong style={{ fontSize: 14, display: 'block' }}>{simulado.discipline}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {new Date(simulado.submittedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+          {' · '}{simulado.totalQuestions} questões
+        </Text>
+      </div>
+      <div style={{ textAlign: 'center', minWidth: 80 }}>
+        <Text style={{ fontSize: 22, fontWeight: 800, color: approved ? '#16a34a' : '#dc2626' }}>{nota}</Text>
+        <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>de 10</Text>
+      </div>
+      <Progress
+        percent={simulado.percentage || 0}
+        size="small"
+        status={approved ? 'success' : 'exception'}
+        style={{ width: 100 }}
+      />
     </div>
   );
 }

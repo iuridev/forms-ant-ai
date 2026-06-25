@@ -11,6 +11,7 @@ const attemptRoutes = require('./routes/attempts');
 const groupRoutes = require('./routes/groups');
 const aulaRoutes = require('./routes/aulas');
 const questionBankRoutes = require('./routes/questionBank');
+const simuladoRoutes = require('./routes/simulados');
 
 const app = express();
 const server = http.createServer(app);
@@ -53,6 +54,7 @@ app.use('/api/attempts', attemptRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/aulas', aulaRoutes);
 app.use('/api/question-bank', questionBankRoutes);
+app.use('/api/simulados', simuladoRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 io.on('connection', (socket) => {

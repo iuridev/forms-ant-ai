@@ -13,8 +13,10 @@ const SHEET_SCHEMAS = {
   Answers:            ['id', 'attemptId', 'questionId', 'selectedOptionId', 'textAnswer', 'isCorrect', 'pointsEarned', 'feedback'],
   ViolationLogs:      ['id', 'attemptId', 'type', 'details', 'timestamp', 'durationSeconds'],
   Aulas:              ['id', 'title', 'description', 'slideUrl', 'groupId', 'teacherId', 'order', 'createdAt'],
-  QuestionBank:       ['id', 'teacherId', 'text', 'type', 'points', 'correctBlank', 'tags', 'createdAt'],
-  QuestionBankOptions:['id', 'questionBankId', 'text', 'isCorrect'],
+  QuestionBank:        ['id', 'teacherId', 'text', 'type', 'points', 'correctBlank', 'tags', 'createdAt'],
+  QuestionBankOptions: ['id', 'questionBankId', 'text', 'isCorrect'],
+  Simulados:           ['id', 'studentId', 'discipline', 'totalQuestions', 'score', 'maxScore', 'status', 'createdAt', 'submittedAt'],
+  SimuladoAnswers:     ['id', 'simuladoId', 'questionBankId', 'questionText', 'questionType', 'isCorrect', 'pointsEarned', 'maxPoints', 'selectedAnswer', 'correctAnswer'],
 };
 
 class SheetsDB {
