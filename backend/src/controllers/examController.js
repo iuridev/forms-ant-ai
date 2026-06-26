@@ -8,7 +8,7 @@ function generateCode() {
 }
 
 async function createExam(req, res) {
-  const { title, description, durationMinutes, type } = req.body;
+  const { title, description, durationMinutes, type, bimestre } = req.body;
   if (!title) return res.status(400).json({ error: 'Título é obrigatório' });
 
   const examType = type === 'TAREFA' ? 'TAREFA' : 'PROVA';
@@ -28,6 +28,7 @@ async function createExam(req, res) {
     type: examType, maxAttempts: String(maxAttempts),
     scheduledStart: '', scheduledEnd: '',
     shuffleQuestions: 'true', shuffleOptions: 'true',
+    bimestre: bimestre || '',
     createdAt: now, updatedAt: now,
   });
   return res.status(201).json(exam);
@@ -68,7 +69,7 @@ async function getExam(req, res) {
 }
 
 async function updateExam(req, res) {
-  const { title, description, durationMinutes, status, type, scheduledStart, scheduledEnd, shuffleQuestions, shuffleOptions } = req.body;
+  const { title, description, durationMinutes, status, type, scheduledStart, scheduledEnd, shuffleQuestions, shuffleOptions, bimestre } = req.body;
   const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
   if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
 
@@ -85,6 +86,7 @@ async function updateExam(req, res) {
     ...(scheduledEnd !== undefined && { scheduledEnd: scheduledEnd || '' }),
     ...(shuffleQuestions !== undefined && { shuffleQuestions: String(shuffleQuestions) }),
     ...(shuffleOptions !== undefined && { shuffleOptions: String(shuffleOptions) }),
+    ...(bimestre !== undefined && { bimestre: bimestre || '' }),
     type: newType,
     maxAttempts: newMaxAttempts,
     updatedAt: new Date().toISOString(),
@@ -309,6 +311,7 @@ async function getStudentProgress(req, res) {
     return {
       attemptId: a.id, examId: a.examId,
       examTitle: exam?.title || '', examType: exam?.type || 'PROVA',
+      bimestre: exam?.bimestre || '',
       submittedAt: a.submittedAt, score, maxScore, pct,
       totalFocusLostSeconds: Number(a.totalFocusLostSeconds) || 0,
     };
@@ -352,6 +355,21 @@ async function getStudentProgress(req, res) {
   const violationsByType = {};
   for (const v of studentViolations) violationsByType[v.type] = (violationsByType[v.type] || 0) + 1;
 
+  // Desempenho por bimestre
+  const BIMESTRES = ['1', '2', '3', '4', 'REC'];
+  const bimestreStats = BIMESTRES.map(b => {
+    const bTimeline = timeline.filter(t => t.bimestre === b);
+    const bScores = bTimeline.filter(t => t.pct !== null).map(t => t.pct);
+    return {
+      bimestre: b,
+      label: b === 'REC' ? 'Recuperação' : `${b}º Bimestre`,
+      totalAttempts: bTimeline.length,
+      avgScore: bScores.length > 0 ? parseFloat((bScores.reduce((a, c) => a + c, 0) / bScores.length).toFixed(1)) : null,
+      bestScore: bScores.length > 0 ? Math.max(...bScores) : null,
+      approvedCount: bScores.filter(s => s >= 60).length,
+    };
+  }).filter(b => b.totalAttempts > 0);
+
   return res.json({
     student: { id: student.id, name: student.name, email: student.email },
     stats: {
@@ -363,6 +381,7 @@ async function getStudentProgress(req, res) {
       totalViolations: studentViolations.length,
     },
     timeline,
+    bimestreStats,
     examPerformance: Object.values(examPerf).sort((a, b) => a.examTitle.localeCompare(b.examTitle)),
     weakQuestions,
     violations: violationsByType,

@@ -6,7 +6,7 @@ import {
   PlusOutlined, EyeOutlined, BarChartOutlined, DeleteOutlined, CopyOutlined,
   FileTextOutlined, BookOutlined, TeamOutlined, CheckCircleOutlined,
   ClockCircleOutlined, RocketOutlined, BankOutlined, LineChartOutlined,
-  ExclamationCircleOutlined,
+  ExclamationCircleOutlined, CalendarOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -18,6 +18,14 @@ const STATUS_CONFIG = {
   DRAFT:  { color: '#8c8c8c', bg: '#fafafa', label: 'Rascunho', icon: <ExclamationCircleOutlined /> },
   ACTIVE: { color: '#52c41a', bg: '#f6ffed', label: 'Ativa',    icon: <CheckCircleOutlined /> },
   CLOSED: { color: '#ff4d4f', bg: '#fff2f0', label: 'Encerrada', icon: <ClockCircleOutlined /> },
+};
+
+const BIMESTRE_CONFIG = {
+  '1':   { label: '1º Bim', color: '#1677ff', bg: '#e6f4ff' },
+  '2':   { label: '2º Bim', color: '#52c41a', bg: '#f6ffed' },
+  '3':   { label: '3º Bim', color: '#fa8c16', bg: '#fff7e6' },
+  '4':   { label: '4º Bim', color: '#722ed1', bg: '#f9f0ff' },
+  'REC': { label: 'Rec.',   color: '#f5222d', bg: '#fff1f0' },
 };
 
 function StatCard({ icon, label, value, color, sub, onClick }) {
@@ -118,7 +126,7 @@ function ExamCard({ exam, onDelete, navigate }) {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
           <div style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
               <Tag
                 color={isTask ? 'blue' : 'purple'}
                 style={{ fontSize: 11, margin: 0, borderRadius: 4 }}
@@ -132,6 +140,18 @@ function ExamCard({ exam, onDelete, navigate }) {
               }}>
                 {cfg.icon} {cfg.label}
               </div>
+              {exam.bimestre && BIMESTRE_CONFIG[exam.bimestre] && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 3,
+                  fontSize: 11, color: BIMESTRE_CONFIG[exam.bimestre].color,
+                  background: BIMESTRE_CONFIG[exam.bimestre].bg,
+                  border: `1px solid ${BIMESTRE_CONFIG[exam.bimestre].color}40`,
+                  borderRadius: 4, padding: '1px 8px',
+                }}>
+                  <CalendarOutlined style={{ fontSize: 10 }} />
+                  {BIMESTRE_CONFIG[exam.bimestre].label}
+                </div>
+              )}
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#1a1a2e', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {exam.title}

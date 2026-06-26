@@ -3,6 +3,7 @@ import { Card, Typography, Space, Button, Tag, Row, Col, Statistic, Table, Progr
 import {
   ArrowLeftOutlined, UserOutlined, TrophyOutlined, WarningOutlined,
   CheckCircleOutlined, CloseCircleOutlined, BookOutlined, FileTextOutlined, ThunderboltOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -51,7 +52,7 @@ export default function StudentDetail() {
 
   if (loading || !data) return null;
 
-  const { student, stats, timeline, examPerformance, weakQuestions, violations } = data;
+  const { student, stats, timeline, examPerformance, weakQuestions, violations, bimestreStats = [] } = data;
 
   // Dados para o gráfico de evolução
   const evolutionData = timeline.map((t, i) => ({
@@ -140,6 +141,75 @@ export default function StudentDetail() {
           </Card>
         </Col>
       </Row>
+
+      {/* Desempenho por Bimestre */}
+      {bimestreStats.length > 0 && (
+        <Card
+          title={<Space><CalendarOutlined style={{ color: '#667eea' }} /><span>Desempenho por Bimestre</span></Space>}
+          style={{ marginBottom: 16 }}
+        >
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {bimestreStats.map(b => {
+              const colorMap = { '1': '#1677ff', '2': '#52c41a', '3': '#fa8c16', '4': '#722ed1', 'REC': '#f5222d' };
+              const bgMap =   { '1': '#e6f4ff', '2': '#f6ffed', '3': '#fff7e6', '4': '#f9f0ff', 'REC': '#fff1f0' };
+              const color = colorMap[b.bimestre] || '#1677ff';
+              const bg = bgMap[b.bimestre] || '#f0f4ff';
+              const avg = b.avgScore;
+              const approved = b.approvedCount;
+              const total = b.totalAttempts;
+
+              return (
+                <div
+                  key={b.bimestre}
+                  style={{
+                    flex: '1 1 160px',
+                    minWidth: 160,
+                    background: bg,
+                    border: `1.5px solid ${color}40`,
+                    borderRadius: 12,
+                    padding: '16px 18px',
+                  }}
+                >
+                  <div style={{ fontSize: 12, color, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CalendarOutlined />
+                    {b.label}
+                  </div>
+
+                  {avg !== null ? (
+                    <>
+                      <div style={{ fontSize: 28, fontWeight: 800, color, lineHeight: 1 }}>
+                        {(avg / 10).toFixed(1)}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 8 }}>média / 10</div>
+                      <Progress
+                        percent={Math.round(avg)}
+                        size="small"
+                        status={avg >= 60 ? 'success' : 'exception'}
+                        showInfo={false}
+                        strokeColor={color}
+                        trailColor={`${color}20`}
+                      />
+                      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: '#9ca3af' }}>{total} tentativa{total > 1 ? 's' : ''}</span>
+                        <span style={{ color: approved === total ? '#52c41a' : '#fa8c16', fontWeight: 600 }}>
+                          {approved}/{total} aprovado{total > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      {b.bestScore !== null && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#9ca3af' }}>
+                          Melhor: <span style={{ color, fontWeight: 600 }}>{(b.bestScore / 10).toFixed(1)}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ color: '#9ca3af', fontSize: 12, marginTop: 4 }}>{total} tentativa{total > 1 ? 's' : ''} — sem nota</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {/* Gráfico de evolução */}
@@ -308,15 +378,24 @@ export default function StudentDetail() {
           columns={[
             {
               title: 'Avaliação', key: 'exam',
-              render: (_, r) => (
-                <Space>
-                  {r.examType === 'TAREFA' ? <BookOutlined style={{ color: '#1677ff' }} /> : <FileTextOutlined />}
-                  <Text>{r.examTitle}</Text>
-                  <Tag color={r.examType === 'TAREFA' ? 'blue' : 'default'} style={{ fontSize: 11 }}>
-                    {r.examType === 'TAREFA' ? 'Tarefa' : 'Prova'}
-                  </Tag>
-                </Space>
-              ),
+              render: (_, r) => {
+                const bimColorMap = { '1': '#1677ff', '2': '#52c41a', '3': '#fa8c16', '4': '#722ed1', 'REC': '#f5222d' };
+                const bimLabelMap = { '1': '1º Bim', '2': '2º Bim', '3': '3º Bim', '4': '4º Bim', 'REC': 'Rec.' };
+                return (
+                  <Space>
+                    {r.examType === 'TAREFA' ? <BookOutlined style={{ color: '#1677ff' }} /> : <FileTextOutlined />}
+                    <Text>{r.examTitle}</Text>
+                    <Tag color={r.examType === 'TAREFA' ? 'blue' : 'default'} style={{ fontSize: 11 }}>
+                      {r.examType === 'TAREFA' ? 'Tarefa' : 'Prova'}
+                    </Tag>
+                    {r.bimestre && bimLabelMap[r.bimestre] && (
+                      <Tag style={{ fontSize: 11, color: bimColorMap[r.bimestre], borderColor: `${bimColorMap[r.bimestre]}60`, background: `${bimColorMap[r.bimestre]}12` }}>
+                        {bimLabelMap[r.bimestre]}
+                      </Tag>
+                    )}
+                  </Space>
+                );
+              },
             },
             {
               title: 'Data', dataIndex: 'submittedAt', key: 'date',

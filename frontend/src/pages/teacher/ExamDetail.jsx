@@ -37,6 +37,14 @@ const STATUS_CONFIG = {
   CLOSED: { color: 'error',   label: 'Encerrada', next: null },
 };
 
+const BIMESTRE_CONFIG = {
+  '1':   { label: '1º Bimestre',  color: '#1677ff', bg: '#e6f4ff' },
+  '2':   { label: '2º Bimestre',  color: '#52c41a', bg: '#f6ffed' },
+  '3':   { label: '3º Bimestre',  color: '#fa8c16', bg: '#fff7e6' },
+  '4':   { label: '4º Bimestre',  color: '#722ed1', bg: '#f9f0ff' },
+  'REC': { label: 'Recuperação',  color: '#f5222d', bg: '#fff1f0' },
+};
+
 export default function ExamDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -63,6 +71,10 @@ export default function ExamDetail() {
   const [shuffleO, setShuffleO] = useState(true);
   const [savingAnticola, setSavingAnticola] = useState(false);
 
+  // Bimestre
+  const [bimestre, setBimestre] = useState('');
+  const [savingBimestre, setSavingBimestre] = useState(false);
+
   async function fetchExam() {
     try {
       const res = await api.get(`/exams/${id}`);
@@ -73,6 +85,7 @@ export default function ExamDetail() {
       ]);
       setShuffleQ(res.data.shuffleQuestions !== 'false');
       setShuffleO(res.data.shuffleOptions !== 'false');
+      setBimestre(res.data.bimestre || '');
     } catch { message.error('Erro ao carregar prova'); }
     finally { setLoading(false); }
   }
@@ -195,6 +208,17 @@ export default function ExamDetail() {
     finally { setSavingSchedule(false); }
   }
 
+  async function saveBimestre(value) {
+    setSavingBimestre(true);
+    try {
+      await api.put(`/exams/${id}`, { bimestre: value });
+      setBimestre(value);
+      message.success('Bimestre atualizado!');
+      fetchExam();
+    } catch { message.error('Erro ao salvar bimestre'); }
+    finally { setSavingBimestre(false); }
+  }
+
   async function saveAnticola() {
     setSavingAnticola(true);
     try {
@@ -266,12 +290,42 @@ export default function ExamDetail() {
               <Text style={{ fontSize: 30, fontWeight: 800, letterSpacing: 5, color: '#1677ff', fontFamily: 'monospace' }}>{exam.accessCode}</Text>
               <Button type="text" icon={<CopyOutlined />} onClick={copyCode} />
             </div>
-            <Space wrap>
+            <Space wrap style={{ marginBottom: 10 }}>
               <Tag icon={<OrderedListOutlined />}>{exam.questions.length} questões</Tag>
               <Tag>{exam.durationMinutes} min</Tag>
               <Tag color="blue">{totalPoints} pts totais</Tag>
             </Space>
-            {exam.description && <Paragraph style={{ marginTop: 8, color: '#666', fontSize: 13 }}>{exam.description}</Paragraph>}
+
+            {/* Bimestre */}
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
+                <CalendarOutlined style={{ marginRight: 4 }} />Bimestre
+              </Text>
+              <Space wrap size={4}>
+                {Object.entries(BIMESTRE_CONFIG).map(([val, cfg]) => (
+                  <div
+                    key={val}
+                    onClick={() => saveBimestre(val)}
+                    style={{
+                      padding: '3px 10px',
+                      borderRadius: 6,
+                      border: `1.5px solid ${bimestre === val ? cfg.color : '#e8e8e8'}`,
+                      background: bimestre === val ? cfg.bg : '#fafafa',
+                      cursor: savingBimestre ? 'wait' : 'pointer',
+                      color: bimestre === val ? cfg.color : '#999',
+                      fontWeight: bimestre === val ? 700 : 400,
+                      fontSize: 12,
+                      transition: 'all 0.15s',
+                      userSelect: 'none',
+                    }}
+                  >
+                    {cfg.label}
+                  </div>
+                ))}
+              </Space>
+            </div>
+
+            {exam.description && <Paragraph style={{ marginTop: 10, color: '#666', fontSize: 13 }}>{exam.description}</Paragraph>}
           </Card>
         </Col>
 
