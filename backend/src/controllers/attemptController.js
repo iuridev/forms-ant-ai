@@ -79,7 +79,10 @@ async function buildSanitizedExam(exam, attemptId = null) {
   questions.sort((a, b) => Number(a.order) - Number(b.order));
   const allOptions = await db.readAll('Options');
 
-  if (attemptId) {
+  const doShuffleQ = exam.shuffleQuestions !== 'false';
+  const doShuffleO = exam.shuffleOptions !== 'false';
+
+  if (attemptId && doShuffleQ) {
     questions = seededShuffle(questions, attemptId + '_q');
   }
 
@@ -88,7 +91,7 @@ async function buildSanitizedExam(exam, attemptId = null) {
     durationMinutes: Number(exam.durationMinutes),
     questions: questions.map(q => {
       let options = allOptions.filter(o => o.questionId === q.id).map(o => ({ id: o.id, text: o.text }));
-      if (attemptId && q.type === 'MULTIPLE_CHOICE') {
+      if (attemptId && doShuffleO && q.type === 'MULTIPLE_CHOICE') {
         options = seededShuffle(options, attemptId + '_o_' + q.id);
       }
       return {

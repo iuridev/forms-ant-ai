@@ -27,6 +27,7 @@ async function createExam(req, res) {
     status: 'DRAFT', accessCode, teacherId: req.user.id,
     type: examType, maxAttempts: String(maxAttempts),
     scheduledStart: '', scheduledEnd: '',
+    shuffleQuestions: 'true', shuffleOptions: 'true',
     createdAt: now, updatedAt: now,
   });
   return res.status(201).json(exam);
@@ -67,7 +68,7 @@ async function getExam(req, res) {
 }
 
 async function updateExam(req, res) {
-  const { title, description, durationMinutes, status, type, scheduledStart, scheduledEnd } = req.body;
+  const { title, description, durationMinutes, status, type, scheduledStart, scheduledEnd, shuffleQuestions, shuffleOptions } = req.body;
   const exam = await db.findOne('Exams', e => e.id === req.params.id && e.teacherId === req.user.id);
   if (!exam) return res.status(404).json({ error: 'Prova não encontrada' });
 
@@ -82,6 +83,8 @@ async function updateExam(req, res) {
     ...(status !== undefined && { status }),
     ...(scheduledStart !== undefined && { scheduledStart: scheduledStart || '' }),
     ...(scheduledEnd !== undefined && { scheduledEnd: scheduledEnd || '' }),
+    ...(shuffleQuestions !== undefined && { shuffleQuestions: String(shuffleQuestions) }),
+    ...(shuffleOptions !== undefined && { shuffleOptions: String(shuffleOptions) }),
     type: newType,
     maxAttempts: newMaxAttempts,
     updatedAt: new Date().toISOString(),

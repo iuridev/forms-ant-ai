@@ -8,6 +8,7 @@ import {
   ArrowLeftOutlined, PlusOutlined, DeleteOutlined, EditOutlined,
   PlayCircleOutlined, StopOutlined, CopyOutlined, TeamOutlined,
   BankOutlined, DownloadOutlined, CalendarOutlined, SaveOutlined,
+  SafetyOutlined, SwapOutlined, OrderedListOutlined, LockOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -57,6 +58,11 @@ export default function ExamDetail() {
   const [scheduleRange, setScheduleRange] = useState([null, null]);
   const [savingSchedule, setSavingSchedule] = useState(false);
 
+  // Anti-cola
+  const [shuffleQ, setShuffleQ] = useState(true);
+  const [shuffleO, setShuffleO] = useState(true);
+  const [savingAnticola, setSavingAnticola] = useState(false);
+
   async function fetchExam() {
     try {
       const res = await api.get(`/exams/${id}`);
@@ -65,6 +71,8 @@ export default function ExamDetail() {
         res.data.scheduledStart ? dayjs(res.data.scheduledStart) : null,
         res.data.scheduledEnd ? dayjs(res.data.scheduledEnd) : null,
       ]);
+      setShuffleQ(res.data.shuffleQuestions !== 'false');
+      setShuffleO(res.data.shuffleOptions !== 'false');
     } catch { message.error('Erro ao carregar prova'); }
     finally { setLoading(false); }
   }
@@ -187,6 +195,15 @@ export default function ExamDetail() {
     finally { setSavingSchedule(false); }
   }
 
+  async function saveAnticola() {
+    setSavingAnticola(true);
+    try {
+      await api.put(`/exams/${id}`, { shuffleQuestions: shuffleQ, shuffleOptions: shuffleO });
+      message.success('Configurações anti-cola salvas!');
+    } catch { message.error('Erro ao salvar configurações'); }
+    finally { setSavingAnticola(false); }
+  }
+
   async function openBankModal() {
     setBankModalOpen(true);
     setBankLoading(true);
@@ -241,58 +258,117 @@ export default function ExamDetail() {
       </div>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={12}>
-          <Card>
-            <Space wrap>
-              <Text><strong>Duração:</strong> {exam.durationMinutes} minutos</Text>
-              <Divider type="vertical" />
-              <Text><strong>Questões:</strong> {exam.questions.length}</Text>
-              <Divider type="vertical" />
-              <Text><strong>Total de pontos:</strong> {totalPoints}</Text>
-            </Space>
-            {exam.description && <Paragraph style={{ marginTop: 8, color: '#666' }}>{exam.description}</Paragraph>}
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
+        {/* Info básica */}
+        <Col span={8}>
+          <Card style={{ height: '100%' }}>
             <Text type="secondary" style={{ fontSize: 12 }}>Código de acesso dos alunos</Text>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <Text style={{ fontSize: 28, fontWeight: 700, letterSpacing: 4, color: '#1677ff' }}>{exam.accessCode}</Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 12px' }}>
+              <Text style={{ fontSize: 30, fontWeight: 800, letterSpacing: 5, color: '#1677ff', fontFamily: 'monospace' }}>{exam.accessCode}</Text>
               <Button type="text" icon={<CopyOutlined />} onClick={copyCode} />
             </div>
+            <Space wrap>
+              <Tag icon={<OrderedListOutlined />}>{exam.questions.length} questões</Tag>
+              <Tag>{exam.durationMinutes} min</Tag>
+              <Tag color="blue">{totalPoints} pts totais</Tag>
+            </Space>
+            {exam.description && <Paragraph style={{ marginTop: 8, color: '#666', fontSize: 13 }}>{exam.description}</Paragraph>}
           </Card>
         </Col>
-        <Col span={6}>
-          <Card>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <CalendarOutlined style={{ color: '#667eea' }} />
-              <Text strong style={{ fontSize: 13 }}>Agendamento</Text>
+
+        {/* Agendamento */}
+        <Col span={8}>
+          <Card style={{ height: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: '#667eea18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CalendarOutlined style={{ color: '#667eea', fontSize: 16 }} />
+              </div>
+              <div>
+                <Text strong style={{ fontSize: 14 }}>Agendamento</Text>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>Define quando a prova abre e fecha</div>
+              </div>
             </div>
+
             <DatePicker.RangePicker
               showTime
               format="DD/MM/YYYY HH:mm"
               value={scheduleRange}
               onChange={val => setScheduleRange(val || [null, null])}
-              placeholder={['Início', 'Fim']}
+              placeholder={['Data/hora de início', 'Data/hora de fim']}
               size="small"
-              style={{ width: '100%', marginBottom: 8 }}
+              style={{ width: '100%', marginBottom: 10 }}
             />
-            <Button
-              size="small"
-              icon={<SaveOutlined />}
-              onClick={saveSchedule}
-              loading={savingSchedule}
-              block
-            >
-              Salvar datas
-            </Button>
+
             {(exam.scheduledStart || exam.scheduledEnd) && (
-              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                {exam.scheduledStart && `Abre: ${new Date(exam.scheduledStart).toLocaleString('pt-BR')}`}
-                {exam.scheduledStart && exam.scheduledEnd && ' | '}
-                {exam.scheduledEnd && `Fecha: ${new Date(exam.scheduledEnd).toLocaleString('pt-BR')}`}
-              </Text>
+              <div style={{ background: '#f8faff', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12 }}>
+                {exam.scheduledStart && (
+                  <div style={{ color: '#52c41a' }}>▶ Abre: {new Date(exam.scheduledStart).toLocaleString('pt-BR')}</div>
+                )}
+                {exam.scheduledEnd && (
+                  <div style={{ color: '#ff4d4f', marginTop: 2 }}>■ Fecha: {new Date(exam.scheduledEnd).toLocaleString('pt-BR')}</div>
+                )}
+              </div>
             )}
+
+            <Button size="small" icon={<SaveOutlined />} onClick={saveSchedule} loading={savingSchedule} block type="primary" ghost>
+              {scheduleRange[0] || scheduleRange[1] ? 'Salvar agendamento' : 'Sem agendamento (salvar)'}
+            </Button>
+          </Card>
+        </Col>
+
+        {/* Anti-cola */}
+        <Col span={8}>
+          <Card style={{ height: '100%', border: '1px solid #d9f7be' }} styles={{ body: { background: '#f6ffed', borderRadius: 8 } }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: '#52c41a18', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <SafetyOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+              </div>
+              <div>
+                <Text strong style={{ fontSize: 14 }}>Mecanismos Anti-Cola</Text>
+                <div style={{ fontSize: 11, color: '#9ca3af' }}>Impede que alunos se copiem</div>
+              </div>
+            </div>
+
+            <Space direction="vertical" style={{ width: '100%', marginBottom: 14 }}>
+              {/* Embaralhar questões */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '10px 14px', border: '1px solid #d9f7be' }}>
+                <Space>
+                  <SwapOutlined style={{ color: shuffleQ ? '#52c41a' : '#d9d9d9', fontSize: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Embaralhar questões</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>Ordem diferente para cada aluno</div>
+                  </div>
+                </Space>
+                <Switch checked={shuffleQ} onChange={setShuffleQ} checkedChildren="ON" unCheckedChildren="OFF" />
+              </div>
+
+              {/* Embaralhar alternativas */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '10px 14px', border: '1px solid #d9f7be' }}>
+                <Space>
+                  <OrderedListOutlined style={{ color: shuffleO ? '#52c41a' : '#d9d9d9', fontSize: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Embaralhar alternativas</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>Opções A/B/C/D em ordem aleatória</div>
+                  </div>
+                </Space>
+                <Switch checked={shuffleO} onChange={setShuffleO} checkedChildren="ON" unCheckedChildren="OFF" />
+              </div>
+
+              {/* Tela cheia — sempre ativo */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: 8, padding: '10px 14px', border: '1px solid #d9f7be', opacity: 0.7 }}>
+                <Space>
+                  <LockOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>Tela cheia obrigatória</div>
+                    <div style={{ fontSize: 11, color: '#9ca3af' }}>Saída registrada como violação</div>
+                  </div>
+                </Space>
+                <Tag color="success" style={{ margin: 0 }}>Sempre ativo</Tag>
+              </div>
+            </Space>
+
+            <Button size="small" icon={<SaveOutlined />} onClick={saveAnticola} loading={savingAnticola} block type="primary" style={{ background: '#52c41a', borderColor: '#52c41a' }}>
+              Salvar configurações
+            </Button>
           </Card>
         </Col>
       </Row>
