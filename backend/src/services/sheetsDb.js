@@ -15,6 +15,7 @@ const SHEET_SCHEMAS = {
   Aulas:              ['id', 'title', 'description', 'slideUrl', 'groupId', 'teacherId', 'order', 'createdAt'],
   QuestionBank:        ['id', 'teacherId', 'text', 'type', 'points', 'correctBlank', 'tags', 'createdAt'],
   QuestionBankOptions: ['id', 'questionBankId', 'text', 'isCorrect'],
+  Disciplines:         ['id', 'teacherId', 'name', 'createdAt'],
   Simulados:           ['id', 'studentId', 'discipline', 'totalQuestions', 'score', 'maxScore', 'status', 'createdAt', 'submittedAt'],
   SimuladoAnswers:     ['id', 'simuladoId', 'questionBankId', 'questionText', 'questionType', 'isCorrect', 'pointsEarned', 'maxPoints', 'selectedAnswer', 'correctAnswer'],
 };

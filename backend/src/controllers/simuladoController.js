@@ -1,60 +1,72 @@
 const db = require('../services/sheetsDb');
 
-// Lista todas as disciplinas (tags) disponíveis no banco de questões
+// Lista disciplinas cadastradas com contagem de questões disponíveis
 async function getTags(req, res) {
+  const disciplines = await db.readAll('Disciplines');
   const questions = await db.readAll('QuestionBank');
-  const tagMap = {};
 
+  // Monta contagem por disciplina
+  const countMap = {};
   for (const q of questions) {
-    const tags = (q.tags || '').split(',').map(t => t.trim()).filter(Boolean);
-    for (const tag of tags) {
-      const key = tag.toLowerCase();
-      if (!tagMap[key]) tagMap[key] = { tag, questionCount: 0 };
-      tagMap[key].questionCount++;
-    }
+    if (q.type === 'ESSAY') continue;
+    const tags = (q.tags || '').split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+    for (const tag of tags) countMap[tag] = (countMap[tag] || 0) + 1;
   }
 
-  const result = Object.values(tagMap)
-    .filter(t => t.questionCount >= 1)
-    .sort((a, b) => b.questionCount - a.questionCount);
+  const result = disciplines.map(d => ({
+    id: d.id,
+    tag: d.name,
+    questionCount: countMap[d.name.toLowerCase()] || 0,
+  })).sort((a, b) => a.tag.localeCompare(b.tag, 'pt-BR'));
 
   return res.json(result);
 }
 
-// Inicia simulado: sorteia questões do banco pela disciplina escolhida
+// Inicia simulado: aceita uma ou múltiplas disciplinas
 async function startSimulado(req, res) {
-  const { discipline, count = 10 } = req.body;
-  if (!discipline) return res.status(400).json({ error: 'Disciplina obrigatória' });
+  const { disciplines, discipline, count = 10 } = req.body;
+
+  // Suporte a array (novo) ou string única (legado)
+  const selected = Array.isArray(disciplines) && disciplines.length > 0
+    ? disciplines
+    : discipline ? [discipline] : [];
+
+  if (selected.length === 0) return res.status(400).json({ error: 'Selecione ao menos uma disciplina' });
 
   const n = Math.min(Math.max(Number(count), 3), 30);
   const allQuestions = await db.readAll('QuestionBank');
   const allOptions = await db.readAll('QuestionBankOptions');
 
+  const selectedLower = selected.map(d => d.toLowerCase());
+
   const matching = allQuestions.filter(q => {
+    if (q.type === 'ESSAY') return false;
     const tags = (q.tags || '').split(',').map(t => t.trim().toLowerCase());
-    return tags.includes(discipline.toLowerCase()) && q.type !== 'ESSAY';
+    return tags.some(t => selectedLower.includes(t));
   });
 
   if (matching.length < 3) {
-    return res.status(400).json({ error: `Não há questões suficientes para "${discipline}". Mínimo: 3 questões (sem dissertativas).` });
+    return res.status(400).json({
+      error: `Não há questões suficientes para as disciplinas selecionadas. Mínimo: 3 questões (sem dissertativas).`,
+    });
   }
 
-  // Shuffle real (simulado é aleatório a cada vez)
   const shuffled = [...matching].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, Math.min(n, shuffled.length));
+  const selectedQs = shuffled.slice(0, Math.min(n, shuffled.length));
+  const disciplineLabel = selected.join(', ');
 
   const simulado = await db.insert('Simulados', {
     studentId: req.user.id,
-    discipline,
-    totalQuestions: String(selected.length),
+    discipline: disciplineLabel,
+    totalQuestions: String(selectedQs.length),
     score: '', maxScore: '',
     status: 'IN_PROGRESS',
     createdAt: new Date().toISOString(),
     submittedAt: '',
   });
 
-  const questions = selected.map(q => {
-    let options = allOptions
+  const questions = selectedQs.map(q => {
+    const options = allOptions
       .filter(o => o.questionBankId === q.id)
       .map(o => ({ id: o.id, text: o.text }))
       .sort(() => Math.random() - 0.5);
@@ -71,9 +83,9 @@ async function startSimulado(req, res) {
   return res.status(201).json({ simulado, questions });
 }
 
-// Entrega o simulado com todas as respostas de uma vez
+// Entrega o simulado com correção automática
 async function submitSimulado(req, res) {
-  const { answers } = req.body; // [{ bankQuestionId, selectedOptionId?, textAnswer? }]
+  const { answers } = req.body;
 
   const simulado = await db.findOne('Simulados', s => s.id === req.params.id && s.studentId === req.user.id);
   if (!simulado) return res.status(404).json({ error: 'Simulado não encontrado' });
@@ -124,12 +136,7 @@ async function submitSimulado(req, res) {
       correctAnswer,
     });
 
-    savedAnswers.push({
-      ...saved,
-      isCorrect,
-      pointsEarned,
-      maxPoints: pts,
-    });
+    savedAnswers.push({ ...saved, isCorrect, pointsEarned, maxPoints: pts });
   }
 
   const updated = await db.update('Simulados', simulado.id, {
@@ -147,10 +154,8 @@ async function submitSimulado(req, res) {
   });
 }
 
-// Histórico de simulados do aluno logado
 async function getMySimulados(req, res) {
   const simulados = await db.findWhere('Simulados', s => s.studentId === req.user.id && s.status === 'SUBMITTED');
-
   return res.json(
     simulados.map(s => ({
       ...s,
@@ -164,7 +169,6 @@ async function getMySimulados(req, res) {
   );
 }
 
-// Detalhes de um simulado (para resultado)
 async function getSimuladoDetail(req, res) {
   const simulado = await db.findOne('Simulados', s => s.id === req.params.id && s.studentId === req.user.id);
   if (!simulado) return res.status(404).json({ error: 'Simulado não encontrado' });
@@ -177,7 +181,6 @@ async function getSimuladoDetail(req, res) {
   });
 }
 
-// Professor visualiza simulados de um aluno
 async function getStudentSimulados(req, res) {
   const { studentId } = req.params;
   const simulados = await db.findWhere('Simulados', s => s.studentId === studentId && s.status === 'SUBMITTED');
@@ -192,11 +195,13 @@ async function getStudentSimulados(req, res) {
       : null,
   })).sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
 
-  // Agrupa por disciplina para estatísticas
   const byDiscipline = {};
   for (const s of result) {
-    if (!byDiscipline[s.discipline]) byDiscipline[s.discipline] = [];
-    byDiscipline[s.discipline].push(s);
+    const discs = s.discipline.split(',').map(d => d.trim());
+    for (const disc of discs) {
+      if (!byDiscipline[disc]) byDiscipline[disc] = [];
+      byDiscipline[disc].push(s);
+    }
   }
 
   const disciplineStats = Object.entries(byDiscipline).map(([discipline, sims]) => {

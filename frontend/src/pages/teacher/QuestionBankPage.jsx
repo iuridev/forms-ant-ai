@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import {
   Card, Button, Typography, Tag, Space, Form, Input, Select, InputNumber,
-  Switch, Divider, List, Popconfirm, message, Modal, Radio, Empty, Row, Col,
+  Switch, Divider, List, Popconfirm, message, Modal, Radio, Empty, Row, Col, Tooltip,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, BankOutlined, SearchOutlined } from '@ant-design/icons';
+import {
+  PlusOutlined, DeleteOutlined, EditOutlined, BankOutlined, SearchOutlined,
+  BookOutlined, CloseOutlined, FilterOutlined,
+} from '@ant-design/icons';
 import api from '../../api';
 
 const { Title, Text } = Typography;
@@ -25,23 +28,55 @@ const QUESTION_COLORS = {
 
 export default function QuestionBankPage() {
   const [questions, setQuestions] = useState([]);
+  const [disciplines, setDisciplines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [discModalOpen, setDiscModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [questionType, setQuestionType] = useState('MULTIPLE_CHOICE');
   const [search, setSearch] = useState('');
+  const [filterDisc, setFilterDisc] = useState(null);
+  const [newDiscName, setNewDiscName] = useState('');
+  const [addingDisc, setAddingDisc] = useState(false);
   const [form] = Form.useForm();
 
   async function fetchBank() {
     setLoading(true);
     try {
-      const res = await api.get('/question-bank');
-      setQuestions(res.data);
+      const [qRes, dRes] = await Promise.all([
+        api.get('/question-bank'),
+        api.get('/disciplines'),
+      ]);
+      setQuestions(qRes.data);
+      setDisciplines(dRes.data);
     } catch { message.error('Erro ao carregar banco'); }
     finally { setLoading(false); }
   }
 
   useEffect(() => { fetchBank(); }, []);
+
+  async function handleAddDiscipline() {
+    if (!newDiscName.trim()) return;
+    setAddingDisc(true);
+    try {
+      await api.post('/disciplines', { name: newDiscName.trim() });
+      message.success(`Disciplina "${newDiscName.trim()}" criada!`);
+      setNewDiscName('');
+      const res = await api.get('/disciplines');
+      setDisciplines(res.data);
+    } catch (err) {
+      message.error(err.response?.data?.error || 'Erro ao criar disciplina');
+    } finally { setAddingDisc(false); }
+  }
+
+  async function handleDeleteDiscipline(id, name) {
+    try {
+      await api.delete(`/disciplines/${id}`);
+      message.success(`"${name}" removida`);
+      const res = await api.get('/disciplines');
+      setDisciplines(res.data);
+    } catch { message.error('Erro ao remover'); }
+  }
 
   function openAdd() {
     setEditing(null);
@@ -53,11 +88,13 @@ export default function QuestionBankPage() {
   function openEdit(q) {
     setEditing(q);
     setQuestionType(q.type);
+    // tags armazenadas como string CSV → array para o Select
+    const tagsArr = (q.tags || '').split(',').map(t => t.trim()).filter(Boolean);
     form.setFieldsValue({
       text: q.text,
       type: q.type,
       points: q.points,
-      tags: q.tags,
+      tags: tagsArr,
       correctBlank: q.correctBlank,
       options: q.options?.length ? q.options : [{ text: '', isCorrect: false }, { text: '', isCorrect: false }],
       trueFalseAnswer: q.type === 'TRUE_FALSE'
@@ -68,6 +105,11 @@ export default function QuestionBankPage() {
   }
 
   async function handleSave(values) {
+    // Converte array de disciplinas de volta para CSV
+    if (Array.isArray(values.tags)) {
+      values.tags = values.tags.join(', ');
+    }
+
     if (values.type === 'TRUE_FALSE') {
       const correct = values.trueFalseAnswer ?? 'Verdadeiro';
       values.options = [
@@ -104,43 +146,93 @@ export default function QuestionBankPage() {
     } catch { message.error('Erro ao excluir'); }
   }
 
-  const filtered = questions.filter(q =>
-    !search || q.text.toLowerCase().includes(search.toLowerCase()) || (q.tags || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = questions.filter(q => {
+    const matchSearch = !search ||
+      q.text.toLowerCase().includes(search.toLowerCase()) ||
+      (q.tags || '').toLowerCase().includes(search.toLowerCase());
+    const matchDisc = !filterDisc ||
+      (q.tags || '').split(',').map(t => t.trim().toLowerCase()).includes(filterDisc.toLowerCase());
+    return matchSearch && matchDisc;
+  });
+
+  const discOptions = disciplines.map(d => ({ value: d.name, label: d.name }));
 
   return (
     <>
+      {/* Cabeçalho */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Space>
           <BankOutlined style={{ fontSize: 24, color: '#667eea' }} />
           <Title level={3} style={{ margin: 0 }}>Banco de Questões</Title>
           <Tag color="purple">{questions.length} questões</Tag>
         </Space>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
-          Nova Questão
-        </Button>
+        <Space>
+          <Button icon={<BookOutlined />} onClick={() => setDiscModalOpen(true)}>
+            Gerenciar Disciplinas
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>
+            Nova Questão
+          </Button>
+        </Space>
       </div>
 
+      {/* Filtros */}
+      <Card style={{ marginBottom: 16 }}>
+        <Row gutter={16} align="middle">
+          <Col flex="1">
+            <Input
+              prefix={<SearchOutlined style={{ color: '#aaa' }} />}
+              placeholder="Buscar por texto ou disciplina..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              allowClear
+            />
+          </Col>
+          <Col>
+            <Select
+              placeholder={<><FilterOutlined /> Filtrar por disciplina</>}
+              style={{ width: 220 }}
+              allowClear
+              value={filterDisc}
+              onChange={setFilterDisc}
+              options={disciplines.map(d => ({
+                value: d.name,
+                label: (
+                  <Space>
+                    {d.name}
+                    <Tag color="blue" style={{ fontSize: 11 }}>{d.questionCount}</Tag>
+                  </Space>
+                ),
+              }))}
+            />
+          </Col>
+        </Row>
+      </Card>
+
+      {/* Lista de questões */}
       <Card>
-        <Input
-          prefix={<SearchOutlined style={{ color: '#aaa' }} />}
-          placeholder="Buscar por texto ou tags..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ marginBottom: 16, maxWidth: 400 }}
-          allowClear
-        />
+        {disciplines.length === 0 && (
+          <div style={{
+            background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8,
+            padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <BookOutlined style={{ color: '#faad14', fontSize: 18 }} />
+            <Text>
+              Nenhuma disciplina cadastrada.{' '}
+              <Button type="link" style={{ padding: 0 }} onClick={() => setDiscModalOpen(true)}>
+                Cadastre disciplinas
+              </Button>{' '}
+              antes de adicionar questões.
+            </Text>
+          </div>
+        )}
 
         {filtered.length === 0 && !loading && (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              search
-                ? 'Nenhuma questão encontrada com este filtro.'
-                : 'Banco vazio. Adicione questões ou salve questões de uma prova clicando no ícone de banco.'
-            }
+            description={search || filterDisc ? 'Nenhuma questão encontrada com este filtro.' : 'Banco vazio. Adicione questões clicando em "Nova Questão".'}
           >
-            {!search && <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Criar primeira questão</Button>}
+            {!search && !filterDisc && <Button type="primary" icon={<PlusOutlined />} onClick={openAdd}>Criar primeira questão</Button>}
           </Empty>
         )}
 
@@ -159,7 +251,11 @@ export default function QuestionBankPage() {
             >
               <List.Item.Meta
                 avatar={
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#667eea', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%', background: '#667eea',
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700, flexShrink: 0,
+                  }}>
                     {idx + 1}
                   </div>
                 }
@@ -168,8 +264,10 @@ export default function QuestionBankPage() {
                     <Text strong>{q.text}</Text>
                     <Tag color={QUESTION_COLORS[q.type]}>{QUESTION_LABELS[q.type]}</Tag>
                     <Tag>{q.points} pt{q.points !== 1 ? 's' : ''}</Tag>
-                    {q.tags && q.tags.split(',').map(t => t.trim()).filter(Boolean).map(t => (
-                      <Tag key={t} color="geekblue" style={{ fontSize: 11 }}>{t}</Tag>
+                    {(q.tags || '').split(',').map(t => t.trim()).filter(Boolean).map(t => (
+                      <Tag key={t} color="geekblue" style={{ fontSize: 11 }}>
+                        <BookOutlined style={{ marginRight: 3 }} />{t}
+                      </Tag>
                     ))}
                   </Space>
                 }
@@ -192,6 +290,71 @@ export default function QuestionBankPage() {
         />
       </Card>
 
+      {/* Modal: Gerenciar Disciplinas */}
+      <Modal
+        title={<Space><BookOutlined />Gerenciar Disciplinas</Space>}
+        open={discModalOpen}
+        onCancel={() => setDiscModalOpen(false)}
+        footer={null}
+        width={480}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            Disciplinas são usadas para organizar as questões do banco e para o aluno escolher nos simulados.
+          </Text>
+        </div>
+
+        {/* Adicionar nova */}
+        <Space.Compact style={{ width: '100%', marginBottom: 20 }}>
+          <Input
+            placeholder="Nome da disciplina (Ex: Matemática)"
+            value={newDiscName}
+            onChange={e => setNewDiscName(e.target.value)}
+            onPressEnter={handleAddDiscipline}
+            maxLength={60}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAddDiscipline}
+            loading={addingDisc}
+            disabled={!newDiscName.trim()}
+          >
+            Adicionar
+          </Button>
+        </Space.Compact>
+
+        {/* Lista de disciplinas cadastradas */}
+        {disciplines.length === 0 ? (
+          <Empty description="Nenhuma disciplina cadastrada" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {disciplines.map(d => (
+              <div key={d.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 14px', borderRadius: 8,
+                background: '#f8faff', border: '1px solid #e8eef8',
+              }}>
+                <Space>
+                  <BookOutlined style={{ color: '#667eea' }} />
+                  <Text strong>{d.name}</Text>
+                  <Tag color="blue">{d.questionCount} questão{d.questionCount !== 1 ? 'ões' : ''}</Tag>
+                </Space>
+                <Popconfirm
+                  title={`Remover "${d.name}"?`}
+                  description="As questões associadas não serão excluídas, apenas a disciplina."
+                  onConfirm={() => handleDeleteDiscipline(d.id, d.name)}
+                  okText="Remover" cancelText="Cancelar" okButtonProps={{ danger: true }}
+                >
+                  <Button type="text" danger size="small" icon={<CloseOutlined />} />
+                </Popconfirm>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: Nova/Editar Questão */}
       <Modal
         title={editing ? 'Editar Questão do Banco' : 'Nova Questão no Banco'}
         open={modalOpen}
@@ -204,7 +367,10 @@ export default function QuestionBankPage() {
             <Select onChange={type => {
               setQuestionType(type);
               if (type === 'TRUE_FALSE') form.setFieldValue('trueFalseAnswer', 'Verdadeiro');
-              else if (type === 'MULTIPLE_CHOICE') form.setFieldValue('options', [{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }]);
+              else if (type === 'MULTIPLE_CHOICE') form.setFieldValue('options', [
+                { text: '', isCorrect: false }, { text: '', isCorrect: false },
+                { text: '', isCorrect: false }, { text: '', isCorrect: false },
+              ]);
             }}>
               <Select.Option value="MULTIPLE_CHOICE">Múltipla Escolha</Select.Option>
               <Select.Option value="TRUE_FALSE">Verdadeiro ou Falso</Select.Option>
@@ -224,15 +390,41 @@ export default function QuestionBankPage() {
               </Form.Item>
             </Col>
             <Col span={16}>
-              <Form.Item name="tags" label="Tags (separadas por vírgula)">
-                <Input placeholder="Ex: matemática, frações, 8º ano" />
+              <Form.Item
+                name="tags"
+                label="Disciplinas"
+                rules={[{ required: true, message: 'Selecione ao menos uma disciplina' }]}
+              >
+                {disciplines.length === 0 ? (
+                  <div>
+                    <Select disabled placeholder="Nenhuma disciplina cadastrada" style={{ width: '100%' }} />
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ padding: 0, marginTop: 4 }}
+                      onClick={() => { setModalOpen(false); setDiscModalOpen(true); }}
+                    >
+                      + Cadastrar disciplinas primeiro
+                    </Button>
+                  </div>
+                ) : (
+                  <Select
+                    mode="multiple"
+                    placeholder="Selecione as disciplinas..."
+                    options={discOptions}
+                    style={{ width: '100%' }}
+                  />
+                )}
               </Form.Item>
             </Col>
           </Row>
 
           {questionType === 'MULTIPLE_CHOICE' && (
             <Form.Item label="Alternativas" required>
-              <Form.List name="options" initialValue={[{ text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }, { text: '', isCorrect: false }]}>
+              <Form.List name="options" initialValue={[
+                { text: '', isCorrect: false }, { text: '', isCorrect: false },
+                { text: '', isCorrect: false }, { text: '', isCorrect: false },
+              ]}>
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map((field, idx) => (
@@ -247,7 +439,11 @@ export default function QuestionBankPage() {
                         {fields.length > 2 && <Button type="text" danger onClick={() => remove(field.name)}>X</Button>}
                       </Space>
                     ))}
-                    {fields.length < 5 && <Button type="dashed" onClick={() => add({ text: '', isCorrect: false })} icon={<PlusOutlined />}>Adicionar alternativa</Button>}
+                    {fields.length < 5 && (
+                      <Button type="dashed" onClick={() => add({ text: '', isCorrect: false })} icon={<PlusOutlined />}>
+                        Adicionar alternativa
+                      </Button>
+                    )}
                   </>
                 )}
               </Form.List>
