@@ -18,7 +18,10 @@ const SHEET_SCHEMAS = {
   Disciplines:         ['id', 'teacherId', 'name', 'createdAt'],
   Simulados:           ['id', 'studentId', 'discipline', 'totalQuestions', 'score', 'maxScore', 'status', 'createdAt', 'submittedAt'],
   SimuladoAnswers:     ['id', 'simuladoId', 'questionBankId', 'questionText', 'questionType', 'isCorrect', 'pointsEarned', 'maxPoints', 'selectedAnswer', 'correctAnswer'],
+  GameAvatars:         ['id', 'studentId', 'name', 'skinTone', 'hairStyle', 'hairColor', 'outfitColor', 'accessory', 'updatedAt'],
+  GameProgress:        ['id', 'studentId', 'gameId', 'phase', 'score', 'maxScore', 'stars', 'correctAnswers', 'totalQuestions', 'completedAt'],
 };
+
 
 class SheetsDB {
   constructor() {

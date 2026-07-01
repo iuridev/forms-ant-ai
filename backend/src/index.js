@@ -13,6 +13,7 @@ const aulaRoutes = require('./routes/aulas');
 const questionBankRoutes = require('./routes/questionBank');
 const simuladoRoutes = require('./routes/simulados');
 const disciplineRoutes = require('./routes/disciplines');
+const gameRoutes = require('./routes/games');
 
 const app = express();
 const server = http.createServer(app);
@@ -57,6 +58,7 @@ app.use('/api/aulas', aulaRoutes);
 app.use('/api/question-bank', questionBankRoutes);
 app.use('/api/simulados', simuladoRoutes);
 app.use('/api/disciplines', disciplineRoutes);
+app.use('/api/games', gameRoutes);
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 io.on('connection', (socket) => {

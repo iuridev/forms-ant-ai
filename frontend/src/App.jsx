@@ -22,6 +22,9 @@ import AttemptResult from './pages/student/AttemptResult';
 import AulaView from './pages/student/AulaView';
 import StudentTurmaPage from './pages/student/StudentTurmaPage';
 import SimuladoPage from './pages/student/SimuladoPage';
+import GameLibrary from './pages/student/games/GameLibrary';
+import AvatarCreator from './pages/student/games/AvatarCreator';
+import DatabaseQuest from './pages/student/games/DatabaseQuest';
 
 function PrivateRoute({ children, role }) {
   const { user, loading } = useAuth();
@@ -60,6 +63,9 @@ function AppRoutes() {
         <Route index element={<StudentDashboard />} />
         <Route path="resultado/:id" element={<AttemptResult />} />
         <Route path="simulado" element={<SimuladoPage />} />
+        <Route path="jogos" element={<GameLibrary />} />
+        <Route path="jogos/avatar" element={<AvatarCreator />} />
+        <Route path="jogos/database-quest" element={<DatabaseQuest />} />
       </Route>
 
       <Route path="/aluno/aula/:id" element={<PrivateRoute role="STUDENT"><AulaView /></PrivateRoute>} />

@@ -367,6 +367,31 @@ export default function StudentDashboard() {
             </div>
           )}
 
+          {/* Jogos */}
+          <div
+            onClick={() => navigate('/aluno/jogos')}
+            style={{
+              background: 'linear-gradient(135deg, #1a1a2e, #16213e)',
+              borderRadius: 16, padding: '20px 24px',
+              cursor: 'pointer', position: 'relative', overflow: 'hidden',
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.opacity = '0.9'}
+            onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+          >
+            <div style={{ position: 'absolute', right: -20, top: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,215,0,0.08)', pointerEvents: 'none' }} />
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🎮</div>
+            <Text strong style={{ color: '#fff', fontSize: 15, display: 'block' }}>Biblioteca de Jogos</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12, display: 'block', marginTop: 2 }}>
+              Aprenda enquanto joga!
+            </Text>
+            <div style={{ marginTop: 12 }}>
+              <span style={{ fontSize: 11, background: 'rgba(255,215,0,0.2)', color: '#ffd700', borderRadius: 6, padding: '3px 10px', fontWeight: 600 }}>
+                Explorar jogos →
+              </span>
+            </div>
+          </div>
+
           {/* Simulados */}
           <div
             onClick={() => navigate('/aluno/simulado')}
